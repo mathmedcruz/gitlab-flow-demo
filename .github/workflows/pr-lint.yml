@@ -1,0 +1,39 @@
+name: PR title lint
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  conventional-title:
+    name: Valida título do PR (Conventional Commits)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Valida prefixo do título
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            hotfix
+            chore
+            docs
+            refactor
+            test
+            build
+            ci
+            perf
+            revert
+          requireScope: false
+          subjectPattern: ^[a-zà-ú].{4,}$
+          subjectPatternError: |
+            O título do PR deve começar com letra minúscula e ter pelo menos 5 caracteres
+            após o tipo. Exemplo: "feat: adiciona endpoint /healthz".
