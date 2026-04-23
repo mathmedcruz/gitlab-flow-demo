@@ -1,7 +1,7 @@
 version: 2
 updates:
-  # Dependências do app Node.js
-  - package-ecosystem: "npm"
+  # Dependências Python (requirements.txt + requirements-dev.txt)
+  - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"

@@ -26,7 +26,7 @@ git checkout -b feature/saudacao-pt-br
 Faça a alteração, commit em Conventional Commits:
 
 ```bash
-git add src/app.js
+git add src/main.py
 git commit -m "feat(app): melhora mensagem de boas-vindas"
 git push -u origin feature/saudacao-pt-br
 ```

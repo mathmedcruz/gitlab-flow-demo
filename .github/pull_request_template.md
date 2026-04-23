@@ -12,7 +12,7 @@ Closes #
 
 <!-- Passos para reproduzir o teste manual, evidências, screenshots. -->
 
-- [ ] Rodei `npm test` localmente
+- [ ] Rodei `pytest` localmente
 - [ ] Testei manualmente em dev
 - [ ] Screenshots / logs anexados (se aplicável)
 

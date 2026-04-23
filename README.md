@@ -2,7 +2,7 @@
 
 Projeto didático para demonstrar o **GitLab Flow com branches de ambiente** usando **GitHub Actions** para simular deploys em **dev**, **staging** e **production**.
 
-O foco não é a aplicação em si (um Express bem simples), e sim **como o código promove entre os ambientes** e **como lidar com bugs encontrados em cada um deles**.
+O foco não é a aplicação em si (um FastAPI bem simples), e sim **como o código promove entre os ambientes** e **como lidar com bugs encontrados em cada um deles**.
 
 ---
 
@@ -63,8 +63,8 @@ Permitir que você explique e pratique:
 │   ├── CODEOWNERS                    # Revisores automáticos
 │   ├── dependabot.yml                # Atualizações de deps automáticas
 │   └── pull_request_template.md      # Template de PR
-├── src/app.js                        # App Express minimalista
-├── test/app.test.js                  # Testes básicos
+├── src/main.py                       # App FastAPI minimalista
+├── tests/test_main.py                # Testes básicos (pytest + TestClient)
 ├── docs/
 │   ├── 01-fluxo-normal.md            # Caminho feliz: feature → prod
 │   ├── 02-hotfix-producao.md         # Bug descoberto em PROD
@@ -73,25 +73,31 @@ Permitir que você explique e pratique:
 │   ├── 05-configuracao-github.md     # Proteções, rulesets e environments
 │   └── 06-armadilhas-e-faq.md        # Pega-ratão comum + FAQ
 ├── CHANGELOG.md
-├── package.json
+├── requirements.txt                  # Runtime (fastapi, uvicorn)
+├── requirements-dev.txt              # + pytest, httpx
 └── README.md
 ```
+
+> Não há `pyproject.toml` com campo `version` de propósito — a **tag git é a versão** (ver [docs/06 → Como expor a versão em runtime](docs/06-armadilhas-e-faq.md#como-expor-a-versão-em-runtime)).
 
 ---
 
 ## 🧪 Rodando localmente
 
 ```bash
-npm install
-npm test                    # roda os testes
-APP_ENV=local npm start     # sobe em http://localhost:3000
+python -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+
+pytest                               # roda os testes
+APP_ENV=local uvicorn src.main:app --port 3000 --reload   # sobe em http://localhost:3000
 ```
 
 Endpoints:
 
 - `GET /` — mensagem + ambiente
 - `GET /health` — health check
-- `GET /version` — versão e ambiente
+- `GET /version` — versão e ambiente (lê `APP_VERSION` da env, com fallback `"dev"`)
 
 ---
 
