@@ -8,7 +8,7 @@ const environment = process.env.APP_ENV || 'local';
 app.get('/', (req, res) => {
   res.json({
     app: pkg.name,
-    message: 'Olá! Este é o app de demonstração do GitLab Flow.',
+    message: 'Olá, mundo! Bem-vindo ao GitLab Flow Demo.',
     environment,
   });
 });
