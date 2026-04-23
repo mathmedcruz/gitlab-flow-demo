@@ -1,6 +1,6 @@
 {
   "name": "gitlab-flow-demo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Projeto didático para demonstrar GitLab Flow com branches de ambiente (dev/staging/production) e GitHub Actions.",
   "main": "src/app.js",
   "scripts": {
