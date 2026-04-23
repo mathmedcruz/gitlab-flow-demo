@@ -1,0 +1,16 @@
+# CODEOWNERS
+# Definem quem revisa cada parte do projeto. Usuários listados aqui
+# são solicitados automaticamente como reviewers em PRs que tocam
+# os arquivos correspondentes.
+#
+# Documentação: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+# Fallback — qualquer arquivo sem regra mais específica
+*                           @matheuscruz-revertai
+
+# Workflows do CI/CD são críticos, mereçam revisão extra
+/.github/workflows/         @matheuscruz-revertai
+
+# Documentação — pode exigir revisores diferentes
+/docs/                      @matheuscruz-revertai
+/README.md                  @matheuscruz-revertai
