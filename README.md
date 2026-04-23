@@ -136,7 +136,7 @@ Versão curta depois do `git push`:
 ### Corolários práticos
 
 - **Promoção é `merge`; hotfix é `cherry-pick`.** Nunca misture.
-- **Tag anotada** (`git tag -a vX.Y.Z`) acontece **em `production`** no momento da release (ou no cherry-pick de hotfix). **A tag é a versão** — sem arquivo de versão no repo, sem commit de bump (ver [docs/06 → Como expor a versão em runtime](docs/06-armadilhas-e-faq.md#como-expor-a-versão-em-runtime)). Caso invertido (pacote publicado em registry) também está documentado lá.
+- **Tag anotada** (`git tag -a vX.Y.Z`) acontece **em `production`** no momento da release (ou no cherry-pick de hotfix). **A tag git é a versão** — sem arquivo de versão no repo, sem commit de bump, sem `npm version` / `poetry version`. Para expor a tag em runtime (`/version`, Sentry, logs), ver [docs/06 → Como expor a versão em runtime](docs/06-armadilhas-e-faq.md#como-expor-a-versão-em-runtime).
 - **`main` reflete "o que está em prod"** até a próxima release mudar isso.
 - **Nomenclatura clara**: `feature/*`, `bugfix/*` (bug em dev/staging), `hotfix/*` (bug em prod).
 

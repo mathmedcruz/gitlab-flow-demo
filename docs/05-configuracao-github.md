@@ -194,7 +194,7 @@ Em **Settings → General → Pull Requests**:
 
 Já criamos `.github/dependabot.yml`. Ele abre PRs semanalmente para:
 
-- Dependências npm
+- Dependências Python (`requirements.txt` / `requirements-dev.txt`)
 - Versões de actions nos workflows
 
 Ative também, em **Settings → Code security and analysis**:

@@ -179,7 +179,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 No workflow de deploy (`deploy-production.yml`), puxe a tag do git (no `production` branch, `git describe --tags --exact-match` devolve a tag recém-criada):
@@ -193,10 +193,10 @@ No workflow de deploy (`deploy-production.yml`), puxe a tag do git (no `producti
   run: docker build --build-arg VERSION=${{ steps.v.outputs.version }} -t myapp:${{ steps.v.outputs.version }} .
 ```
 
-No código da aplicação:
+No código da aplicação (é literalmente o que está em [`src/main.py`](../src/main.py) deste projeto):
 
 ```python
-# app/main.py
+# src/main.py
 import os
 from fastapi import FastAPI
 
@@ -216,7 +216,7 @@ Equivalente em Django (`settings.py` + view) ou Flask é direto — lê `os.gete
 Resolver a tag no startup com `git describe`. Funciona em dev (onde você tem `.git`), mas **só** funciona em produção se `.git` estiver presente no container — raro em imagens enxutas. Prefira build-time; use isto como fallback:
 
 ```python
-# app/version.py
+# src/version.py
 import os
 import subprocess
 
@@ -235,37 +235,15 @@ def resolve_version() -> str:
 APP_VERSION = resolve_version()
 ```
 
-**Critério do bump SemVer** (pelos Conventional Commits desde a última tag):
+**Como decidir a próxima versão (SemVer)** — olhe os Conventional Commits desde a última tag:
 
-- só `fix:` / `refactor:` / `chore:` → **PATCH**
-- algum `feat:` → **MINOR**
-- breaking change (`feat!:` / `BREAKING CHANGE:`) → **MAJOR**
+- só `fix:` / `refactor:` / `chore:` → **PATCH** (`v0.2.1`)
+- algum `feat:` → **MINOR** (`v0.3.0`)
+- breaking change (`feat!:` / `BREAKING CHANGE:`) → **MAJOR** (`v1.0.0`)
 
----
+Decidiu a versão → `git tag -a vX.Y.Z -m "..."` em `production` → `git push --tags`. **Nada de editar arquivo de versão.** Este projeto é um serviço deployado por tag — a tag git é a única fonte de verdade da versão.
 
-### E se meu projeto **é** um pacote publicado (PyPI, npm, crates.io)?
-
-Aí o modelo "tag é a versão" não fecha sozinho — o registry **exige** `version` no manifest (`pyproject.toml`, `package.json`, `Cargo.toml`). Nesse caso, o fluxo do [01-fluxo-normal.md §4](01-fluxo-normal.md) ganha um passo extra entre o merge e a tag:
-
-```bash
-git checkout production && git pull --rebase origin production
-git merge --no-ff origin/staging -m "chore(release): 0.2.0 — staging → production"
-
-# passo extra: bump no manifest (pacote publicado)
-poetry version 0.2.0         # ou: npm version 0.2.0 --no-git-tag-version
-git commit -am "chore(release): bump para 0.2.0"
-
-git tag -a v0.2.0 -m "Release 0.2.0"
-git push origin production --tags
-```
-
-Mesmo assim, **a tag continua sendo a fonte de verdade** — o commit de bump é só pra satisfazer o registry. Mantenha-os sincronizados (CI que falha se `pyproject.toml:version` ≠ `git describe --tags --exact-match` é barato e evita o pior caso).
-
-Regra prática pra decidir:
-
-- **Serviço/app interno deployado por tag** (FastAPI/Django/Flask/Rails/Go atrás de Docker) → sem arquivo de versão, só tag. Fluxo padrão deste projeto.
-- **Biblioteca publicada em registry público** → tag + bump no manifest.
-- **Biblioteca interna consumida por outros repos via versão fixa no lockfile deles** → idem biblioteca publicada.
+> ℹ️ **Projeto publicado em registry (PyPI/npm/crates.io) é um caso diferente** — o registry exige `version` no manifest, então o fluxo precisa de um passo extra (editar o manifest antes da tag). **Este projeto não é esse caso** e os guias não cobrem esse cenário. Se seu projeto futuro for publicado, a adaptação é direta: adicione um `poetry version X.Y.Z && git commit` entre o `git merge` e o `git tag` do [fluxo normal §4](01-fluxo-normal.md), e a tag continua sendo a fonte de verdade.
 
 ---
 

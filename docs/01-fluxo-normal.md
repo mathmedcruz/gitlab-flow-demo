@@ -9,7 +9,7 @@ feature/x ──PR──► main ──(git merge)──► staging ──(git m
 
 - Feature entra em `main` via **PR** (onde o review acontece).
 - Promoção `main → staging` e `staging → production` é **`git merge --no-ff` local + push**. Sem PR extra. Sem cerimônia.
-- Bump de versão + tag direto em `production` após o merge.
+- **Tag git anotada** direto em `production` após o merge — **a tag é a versão**. Sem bump em nenhum arquivo.
 
 Isso exige que o release manager tenha permissão de push em `staging` e `production` — ver [05-configuracao-github.md](05-configuracao-github.md) para o ruleset correto.
 
@@ -96,7 +96,7 @@ git push origin production --tags
 - 🟢 Após aprovação → deploy em prod.
 - 🏷️ Tag `v0.2.0` fica visível em **Tags / Releases** no GitHub.
 
-> 💡 **Sem arquivo de versão, sem commit de bump.** A **tag git é a versão** — nada de `npm version` / `poetry version` / edição de manifest. Zero commit de *"chore: bump"* poluindo histórico, zero conflito de merge em arquivo de versão. Para expor a tag em runtime (endpoint `/version`, Sentry, logs), ver [06-armadilhas-e-faq.md → Como expor a versão em runtime](06-armadilhas-e-faq.md#como-expor-a-versão-em-runtime). Se seu projeto **é** um pacote publicado (PyPI/npm), ver o caso invertido no mesmo arquivo.
+> 💡 **Sem arquivo de versão, sem commit de bump.** A **tag git é a versão** — nada de `npm version` / `poetry version` / edição de manifest. Zero commit de *"chore: bump"* poluindo histórico, zero conflito de merge em arquivo de versão. Para expor a tag em runtime (endpoint `/version`, Sentry, logs), ver [06-armadilhas-e-faq.md → Como expor a versão em runtime](06-armadilhas-e-faq.md#como-expor-a-versão-em-runtime).
 
 ### Como escolher a versão (SemVer)
 

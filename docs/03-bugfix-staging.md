@@ -62,7 +62,7 @@ Se TODAS as features em `main` também estão prontas, aí sim faça a promoçã
 O fix agora está em `main` e em `staging`. Quando for hora de fechar a release, ele vai para `production` no mesmo trem do [cenário 1 — fluxo normal](01-fluxo-normal.md):
 
 - `git merge --no-ff origin/staging` em `production`
-- Bump + tag em `production`
+- `git tag -a vX.Y.Z` em `production` (a tag é a versão — sem bump de arquivo)
 - Push branch + tags
 
 ---
