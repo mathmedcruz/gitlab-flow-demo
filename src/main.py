@@ -13,7 +13,7 @@ app = FastAPI(title=APP_NAME, version=APP_VERSION)
 def root():
     return {
         "app": APP_NAME,
-        "message": "Olá, mundo! Bem-vindo ao GitLab Flow Demo Isadora.",
+        "message": "Olá, mundo! Bem-vindo ao GitLab Flow Demo Sofia.",
         "environment": APP_ENV,
     }
 
