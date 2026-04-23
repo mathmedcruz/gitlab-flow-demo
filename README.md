@@ -61,7 +61,6 @@ Permitir que você explique e pratique:
 │   │   └── deploy-production.yml     # Deploy ao dar push em production
 │   ├── ISSUE_TEMPLATE/               # Templates de bug e feature
 │   ├── CODEOWNERS                    # Revisores automáticos
-│   ├── dependabot.yml                # Atualizações de deps automáticas
 │   └── pull_request_template.md      # Template de PR
 ├── src/main.py                       # App FastAPI minimalista
 ├── tests/test_main.py                # Testes básicos (pytest + TestClient)
@@ -103,7 +102,7 @@ Endpoints:
 
 ## ⚙️ Configuração do repositório no GitHub
 
-O passo a passo completo (rulesets, environments, CODEOWNERS, Conventional Commits, Dependabot, secret scanning…) está em **[docs/05-configuracao-github.md](docs/05-configuracao-github.md)**.
+O passo a passo completo (rulesets, environments, CODEOWNERS, Conventional Commits, secret scanning…) está em **[docs/05-configuracao-github.md](docs/05-configuracao-github.md)**.
 
 Versão curta depois do `git push`:
 

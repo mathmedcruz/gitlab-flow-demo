@@ -16,7 +16,7 @@ Ordem recomendada de execução (todos os passos são feitos na UI do GitHub, ex
 - [ ] 4. Exigir CODEOWNERS em PRs
 - [ ] 5. Padronizar título de PR (Conventional Commits)
 - [ ] 6. Configurar merge settings do repo
-- [ ] 7. Ativar Dependabot + Security
+- [ ] 7. Ativar recursos de segurança do GitHub
 - [ ] 8. (Opcional) Proteger tags `v*`
 
 ---
@@ -190,21 +190,17 @@ Em **Settings → General → Pull Requests**:
 
 ---
 
-## 7) Dependabot e segurança
+## 7) Recursos de segurança do GitHub
 
-Já criamos `.github/dependabot.yml`. Ele abre PRs semanalmente para:
+Em **Settings → Code security and analysis**, ative:
 
-- Dependências Python (`requirements.txt` / `requirements-dev.txt`)
-- Versões de actions nos workflows
-
-Ative também, em **Settings → Code security and analysis**:
-
-- ✅ **Dependency graph**
-- ✅ **Dependabot alerts**
-- ✅ **Dependabot security updates**
+- ✅ **Dependency graph** — base pra alertas e code scanning.
+- ✅ **Dependabot alerts** — avisa quando uma dependência tem CVE. Sem abrir PR automático (passivo).
 - ✅ **Secret scanning** — alerta se alguém commitar credenciais.
 - ✅ **Push protection** — *bloqueia* o push se detectar segredo, antes mesmo do commit chegar ao GitHub.
 - ✅ **Code scanning** (CodeQL) — análise estática de segurança. Crie o workflow default.
+
+> ℹ️ **Por que não usar `dependabot.yml`?** PRs automáticos de bump de dependência são ruído em projeto pequeno/didático: viram fila de PRs sem contexto, poluem o histórico de CI e distraem do trabalho real. Se/quando a dor de dependências desatualizadas aparecer, aí sim vale adicionar `.github/dependabot.yml`. Até lá, **Dependabot alerts** (passivo, só avisa) é suficiente.
 
 ---
 
