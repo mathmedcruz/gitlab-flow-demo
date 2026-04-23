@@ -71,6 +71,7 @@ Configure assim:
   - Status checks obrigatórios:
     - `CI / Lint & Testes`
     - `PR title lint / Valida título do PR (Conventional Commits)`
+    - `Promotion guard / Valida origem do PR de promoção` *(só aparece em PRs para staging/production — adicione mesmo assim, o GitHub valida apenas quando o check tem relevância)*
 - ✅ **Block force pushes**
 - ✅ **Require signed commits** *(opcional mas recomendado — ver §9)*
 

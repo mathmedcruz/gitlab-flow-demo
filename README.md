@@ -54,6 +54,8 @@ Permitir que você explique e pratique:
 │   ├── workflows/
 │   │   ├── ci.yml                    # Testes em PRs e pushes
 │   │   ├── pr-lint.yml               # Valida título do PR (Conventional Commits)
+│   │   ├── promotion-guard.yml       # Só aceita PRs de promoção permitidos em staging/production
+│   │   ├── promote.yml               # Promoção sem PR (gh workflow run / automático)
 │   │   ├── deploy-dev.yml            # Deploy ao dar push em main
 │   │   ├── deploy-staging.yml        # Deploy ao dar push em staging
 │   │   └── deploy-production.yml     # Deploy ao dar push em production
@@ -68,7 +70,9 @@ Permitir que você explique e pratique:
 │   ├── 02-hotfix-producao.md         # Bug descoberto em PROD
 │   ├── 03-bugfix-staging.md          # Bug descoberto em STAGING
 │   ├── 04-bugfix-dev.md              # Bug descoberto em DEV
-│   └── 05-configuracao-github.md     # Proteções, rulesets e environments
+│   ├── 05-configuracao-github.md     # Proteções, rulesets e environments
+│   ├── 06-modelo-simplificado.md     # PR só em main, resto é promoção
+│   └── 07-promocao-automatizada.md   # Promoção sem PR, via gh workflow run
 ├── CHANGELOG.md
 ├── package.json
 └── README.md
@@ -112,6 +116,8 @@ Versão curta depois do `git push`:
 3. **[Bugfix: bug em staging](docs/03-bugfix-staging.md)**
 4. **[Bugfix: bug em dev](docs/04-bugfix-dev.md)**
 5. **[Configuração profissional do GitHub (rulesets, environments, CODEOWNERS…)](docs/05-configuracao-github.md)**
+6. **[Modelo simplificado: PR só para main, o resto é promoção](docs/06-modelo-simplificado.md)**
+7. **[Promoção automatizada: sem PR, via `gh workflow run`](docs/07-promocao-automatizada.md)**
 
 ---
 
