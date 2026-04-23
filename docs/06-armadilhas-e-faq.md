@@ -160,6 +160,54 @@ Ajuda o time, stakeholders, release notes, changelogs automáticos. Zero custo e
 
 ---
 
+### E se o projeto não tiver `package.json` (ou `pyproject.toml`, etc)?
+
+O GitLab Flow **não depende** de arquivo de versão — a **tag git é a versão**. Se o repositório não tem `package.json`, `pyproject.toml`, `Cargo.toml` ou similar (caso comum em serviços Django/Rails/Go internos), o ritual de release fica até mais simples: sem commit de bump, sem conflito de merge em arquivo de versão, sem duplicação de fonte de verdade.
+
+**Ritual de release sem arquivo de versão** (adaptação do [01-fluxo-normal.md §4](01-fluxo-normal.md)):
+
+```bash
+git checkout production && git pull --rebase origin production
+git merge --no-ff origin/staging -m "chore(release): 0.2.0 — staging → production"
+git tag -a v0.2.0 -m "Release 0.2.0"
+git push origin production --tags
+```
+
+Só isso. Sem `npm version`, sem commit de bump. O passo `npm version ... && git commit -am "chore(release): bump ..."` do fluxo normal simplesmente **desaparece**.
+
+**Critério do bump** continua igual (SemVer pelos prefixos de Conventional Commits desde a última tag):
+
+- só `fix:` / `refactor:` / `chore:` → **PATCH**
+- algum `feat:` → **MINOR**
+- breaking change → **MAJOR**
+
+**Se precisar expor a versão em runtime** (endpoint `/version`, header HTTP, Sentry, logs), duas opções:
+
+1. **Build-time** — injete a tag como build arg no Docker e leia via env var:
+   ```dockerfile
+   ARG VERSION
+   ENV APP_VERSION=$VERSION
+   ```
+   No workflow de deploy: `docker build --build-arg VERSION=${{ github.ref_name }} ...`
+
+2. **Runtime via git** — `git describe --tags --always` no startup. Só funciona se `.git` estiver presente no runtime (geralmente não em containers de produção); use build-time quando em dúvida.
+
+**Vantagens desse modelo:**
+
+- Zero commit de *"chore: bump version"* poluindo histórico.
+- Zero conflito de merge em arquivo de versão entre features paralelas.
+- Uma única fonte de verdade: a tag anotada.
+- Re-tag / retag é trivial (não precisa reverter commit de bump).
+
+**Quando **não** usar:**
+
+- Pacotes publicados em registry público (npm, PyPI, crates.io) — o registry exige versão no manifest. Mantenha o arquivo e faça o bump.
+- Bibliotecas consumidas por outros repos via versão fixa no lockfile deles — idem.
+
+Este padrão é para **serviços/apps internos deployados por tag**, onde a tag git é suficiente como versão.
+
+---
+
 ### Tenho mesmo que usar PRs para promoção?
 
 Neste projeto, **não**. PRs são só para `main` (onde acontece review de código). Promoção `main → staging` e `staging → production` é `git merge --no-ff` local do release manager — sem PR extra, sem ritual redundante.
