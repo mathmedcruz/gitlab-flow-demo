@@ -50,18 +50,25 @@ Permitir que você explique e pratique:
 
 ```
 .
-├── .github/workflows/
-│   ├── ci.yml                    # Testes em PRs e pushes
-│   ├── deploy-dev.yml            # Deploy ao dar push em main
-│   ├── deploy-staging.yml        # Deploy ao dar push em staging
-│   └── deploy-production.yml     # Deploy ao dar push em production
-├── src/app.js                    # App Express minimalista
-├── test/app.test.js              # Testes básicos
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                    # Testes em PRs e pushes
+│   │   ├── pr-lint.yml               # Valida título do PR (Conventional Commits)
+│   │   ├── deploy-dev.yml            # Deploy ao dar push em main
+│   │   ├── deploy-staging.yml        # Deploy ao dar push em staging
+│   │   └── deploy-production.yml     # Deploy ao dar push em production
+│   ├── ISSUE_TEMPLATE/               # Templates de bug e feature
+│   ├── CODEOWNERS                    # Revisores automáticos
+│   ├── dependabot.yml                # Atualizações de deps automáticas
+│   └── pull_request_template.md      # Template de PR
+├── src/app.js                        # App Express minimalista
+├── test/app.test.js                  # Testes básicos
 ├── docs/
-│   ├── 01-fluxo-normal.md        # Caminho feliz: feature → prod
-│   ├── 02-hotfix-producao.md     # Bug descoberto em PROD
-│   ├── 03-bugfix-staging.md      # Bug descoberto em STAGING
-│   └── 04-bugfix-dev.md          # Bug descoberto em DEV
+│   ├── 01-fluxo-normal.md            # Caminho feliz: feature → prod
+│   ├── 02-hotfix-producao.md         # Bug descoberto em PROD
+│   ├── 03-bugfix-staging.md          # Bug descoberto em STAGING
+│   ├── 04-bugfix-dev.md              # Bug descoberto em DEV
+│   └── 05-configuracao-github.md     # Proteções, rulesets e environments
 ├── CHANGELOG.md
 ├── package.json
 └── README.md
@@ -87,36 +94,14 @@ Endpoints:
 
 ## ⚙️ Configuração do repositório no GitHub
 
-Depois de criar o repositório no GitHub e dar `git push`, configure:
+O passo a passo completo (rulesets, environments, CODEOWNERS, Conventional Commits, Dependabot, secret scanning…) está em **[docs/05-configuracao-github.md](docs/05-configuracao-github.md)**.
 
-### 1. Branches `staging` e `production`
+Versão curta depois do `git push`:
 
-Se ainda não existem, crie-as a partir de `main`:
-
-```bash
-git checkout main
-git checkout -b staging && git push -u origin staging
-git checkout main
-git checkout -b production && git push -u origin production
-```
-
-### 2. Proteção de branches (*Settings → Branches*)
-
-Para `main`, `staging` e `production`:
-
-- ✅ Require a pull request before merging
-- ✅ Require status checks to pass (selecione o job **CI / Lint & Testes**)
-- ✅ Require linear history (recomendado)
-- ❌ Não permitir push direto
-
-### 3. Environments (*Settings → Environments*)
-
-Crie três ambientes: `dev`, `staging`, `production`. Em **production**:
-
-- ✅ Required reviewers (pelo menos 1)
-- ✅ Deployment branches: somente `production`
-
-Isso faz o deploy em prod pausar esperando aprovação manual — ótimo para ensinar o *promotion gate*.
+1. Crie as branches `staging` e `production` a partir de `main`.
+2. Em **Settings → Rules → Rulesets**, crie um ruleset para `main`, `staging` e `production` com: require PR, require CI + `PR title lint`, require linear history, require Code Owners review, block force pushes, restrict deletions.
+3. Em **Settings → Environments**, crie `dev`, `staging`, `production` — marque *Required reviewers* em `production` (é o gate manual para deploy em prod).
+4. Em **Settings → General**, marque *Automatically delete head branches* e configure squash merge como default com "Pull request title" como commit message.
 
 ---
 
@@ -126,6 +111,7 @@ Isso faz o deploy em prod pausar esperando aprovação manual — ótimo para en
 2. **[Hotfix: bug em produção](docs/02-hotfix-producao.md)**
 3. **[Bugfix: bug em staging](docs/03-bugfix-staging.md)**
 4. **[Bugfix: bug em dev](docs/04-bugfix-dev.md)**
+5. **[Configuração profissional do GitHub (rulesets, environments, CODEOWNERS…)](docs/05-configuracao-github.md)**
 
 ---
 
