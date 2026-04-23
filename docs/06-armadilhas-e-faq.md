@@ -6,15 +6,15 @@ Pega-ratão do dia a dia em GitLab Flow e perguntas que todo time faz. Baseado e
 
 ## 🪤 Armadilhas comuns
 
-### 1. Commit direto em `staging` ou `production`
+### 1. Commit direto (não-promoção) em `staging` ou `production`
 
-**Sintoma:** alguém faz `git push origin staging` com um commit local direto.
+**Sintoma:** alguém faz `git commit` direto em `staging`/`production` (fora do ritual `git merge --no-ff origin/...` ou `cherry-pick`) e empurra.
 
 **Consequência:** quebra a invariante "production ⊂ staging ⊂ main". Na próxima promoção `main → staging`, o commit **some** (é sobrescrito) ou reaparece como conflito estranho. Em hotfix fica pior — pode "desaplicar" silenciosamente.
 
 **Defesa:**
-- Ruleset protegendo as branches com *require PR*.
-- Push direto bloqueado — tudo (inclusive promoção) passa por PR com CI verde.
+- Ruleset com **bypass list** restrita a release managers — dev comum é bloqueado no push.
+- Release managers têm disciplina de usar **apenas** `git merge --no-ff origin/<upstream>` ou `git cherry-pick <sha>` nessas branches. Nada de `git commit` direto (exceto bump de versão em `production`).
 - Ver [05-configuracao-github.md](05-configuracao-github.md).
 
 ---
@@ -48,7 +48,7 @@ Pega-ratão do dia a dia em GitLab Flow e perguntas que todo time faz. Baseado e
 **Consequência:** resolução manual arriscada, staging fica "estranho", próximo release é doloroso.
 
 **Defesa:** **cadência fixa** de promoção. Exemplo:
-- Toda terça de manhã → abra PR `main → staging` (promoção).
+- Toda terça de manhã → `git checkout staging && git merge --no-ff origin/main && git push`.
 - Mesmo que o lote seja pequeno, **promove**. Manter staging fresco é barato; re-sincronizar depois de semanas é caro.
 
 ---
@@ -86,17 +86,18 @@ Ou, mais simples ainda: **só use `bugfix/*` e `hotfix/*`**, pulando `fix/*`. Me
 
 **Consequência:** monitoria, suporte e debugging ficam confusos. "Que versão está rodando?". Release notes automáticas ficam erradas.
 
-**Defesa:** incluir o bump + tag como **parte do ritual de release**. Depois de mergear o PR `staging → production`, rode (ver [01-fluxo-normal.md §4.2](01-fluxo-normal.md)):
+**Defesa:** bump + tag **no mesmo ritual do merge `staging → production`** (ver [01-fluxo-normal.md §4](01-fluxo-normal.md)):
 
 ```bash
 git checkout production && git pull --rebase origin production
+git merge --no-ff origin/staging -m "chore(release): 0.2.0 — staging → production"
 npm version 0.2.0 --no-git-tag-version
 git commit -am "chore(release): bump para 0.2.0"
 git tag -a v0.2.0 -m "Release 0.2.0"
 git push origin production --tags
 ```
 
-Checklist no template do PR de release evita esquecimento. Bypass da proteção pro release manager faz o push direto funcionar.
+Faz tudo junto, sem espaço pra esquecer. Se quiser, automatize com alias ou `make release`.
 
 ---
 
@@ -161,9 +162,15 @@ Ajuda o time, stakeholders, release notes, changelogs automáticos. Zero custo e
 
 ### Tenho mesmo que usar PRs para promoção?
 
-Sim — é a recomendação do guia oficial do GitLab Flow. PRs de promoção (`main → staging`, `staging → production`) geram **checkpoints revisáveis** com changelog automático dos commits entrando, e ficam como histórico de "quando promovemos o quê". Use **merge commit** (`--no-ff`) nessas promoções, não squash.
+Neste projeto, **não**. PRs são só para `main` (onde acontece review de código). Promoção `main → staging` e `staging → production` é `git merge --no-ff` local do release manager — sem PR extra, sem ritual redundante.
 
-Em times muito maduros, algumas equipes automatizam isso via workflow — mas é otimização, não o ponto de partida. Comece com PRs, sempre.
+O guia oficial do GitLab Flow lista PR como "preferível" (gera um checkpoint revisável), mas deixa explícito que CLI é válido. Nosso modelo usa CLI porque:
+
+- O review já foi feito no PR para `main` — promoção não adiciona valor de review.
+- Menos fricção = promoções mais frequentes = staging não envelhece.
+- O release manager (bypass list do ruleset) é o único autorizado a fazer, então continua auditável.
+
+Se algum release específico merecer um checkpoint revisável (release grande, cross-team), nada impede você de abrir um PR `main → staging` **só aquele** e mergear com merge commit. Híbrido funciona.
 
 ---
 

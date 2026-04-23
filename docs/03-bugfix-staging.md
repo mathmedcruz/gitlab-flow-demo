@@ -53,7 +53,7 @@ git push origin staging
 
 Porque `main` pode ter **features incompletas** ou em teste que ainda não estão prontas para o release atual. Cherry-pick é cirúrgico: leva **só o fix**, preservando o escopo da release em staging.
 
-Se TODAS as features em `main` também estão prontas, aí sim faça a promoção normal `main → staging` via PR — mas é decisão explícita.
+Se TODAS as features em `main` também estão prontas, aí sim faça a promoção normal (`git merge --no-ff origin/main` em staging) — mas é decisão explícita.
 
 ---
 
@@ -61,9 +61,9 @@ Se TODAS as features em `main` também estão prontas, aí sim faça a promoçã
 
 O fix agora está em `main` e em `staging`. Quando for hora de fechar a release, ele vai para `production` no mesmo trem do [cenário 1 — fluxo normal](01-fluxo-normal.md):
 
-- PR `staging → production`
-- Merge commit
+- `git merge --no-ff origin/staging` em `production`
 - Bump + tag em `production`
+- Push branch + tags
 
 ---
 

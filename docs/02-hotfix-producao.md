@@ -61,13 +61,7 @@ git push origin staging
 
 🟢 Deploy em **staging**. QA faz smoke rápido (~10 min) para confirmar.
 
-> ⚠️ **Branch protegida:** se `staging` só aceita via PR, crie uma branch temporária:
-> ```bash
-> git checkout -b hotfix/apply-stg
-> git cherry-pick 9a8b7c6
-> git push -u origin hotfix/apply-stg
-> gh pr create -B staging
-> ```
+> ℹ️ O push direto em `staging` só funciona para quem está na **bypass list** do ruleset (release managers). Dev comum recebe erro — é o comportamento esperado. Ver [05-configuracao-github.md](05-configuracao-github.md).
 
 ---
 

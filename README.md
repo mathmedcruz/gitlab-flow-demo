@@ -36,11 +36,13 @@ Permitir que você explique e pratique:
               └──────────────┘
 ```
 
-| Branch        | Ambiente    | Como chega código lá              | Trigger do workflow            |
-| ------------- | ----------- | --------------------------------- | ------------------------------ |
-| `main`        | dev         | merge de `feature/*` via PR       | `push` em `main`               |
-| `staging`     | staging     | merge de `main` via PR            | `push` em `staging`            |
-| `production`  | production  | merge de `staging` via PR         | `push` em `production`         |
+| Branch        | Ambiente    | Como chega código lá                              | Trigger do workflow            |
+| ------------- | ----------- | ------------------------------------------------- | ------------------------------ |
+| `main`        | dev         | PR de `feature/*` / `bugfix/*` / `hotfix/*`       | `push` em `main`               |
+| `staging`     | staging     | `git merge --no-ff origin/main` local + `push`    | `push` em `staging`            |
+| `production`  | production  | `git merge --no-ff origin/staging` + bump + tag   | `push` em `production`         |
+
+> **PR só para `main`.** Promoção entre branches de ambiente é `git merge` local do release manager. Zero PRs extras de promoção.
 
 **Regra de ouro (upstream first):** todo código entra primeiro em `main` e só depois *flui para baixo* (`main → staging → production`). Isso garante que **o que está em produção sempre existe em staging e em main** — nunca o contrário.
 
@@ -100,10 +102,11 @@ O passo a passo completo (rulesets, environments, CODEOWNERS, Conventional Commi
 Versão curta depois do `git push`:
 
 1. Crie as branches `staging` e `production` a partir de `main`.
-2. Em **Settings → Rules → Rulesets**, crie um ruleset para `main`, `staging` e `production` com: require PR, require CI + `PR title lint`, require Code Owners review, block force pushes, restrict deletions. **Não** marque *Require linear history* — isso quebra os merge commits das promoções.
-3. Em **Settings → Environments**, crie `dev`, `staging`, `production` — marque *Required reviewers* em `production` (é o gate manual para deploy em prod).
-4. Em **Settings → General**, marque *Automatically delete head branches*. Habilite tanto **squash merging** (default para features/bugfix/hotfix) quanto **merge commits** (usado nas promoções `main → staging` e `staging → production`).
-5. (Opcional) adicione o release manager à **bypass list** do ruleset de `production` para que ele possa pushar diretamente o commit de bump + tag após o merge do PR de release.
+2. Em **Settings → Rules → Rulesets**, crie **dois** rulesets:
+   - **"Main branch protection"** → target `main` → exige PR, CI verde, Code Owners, block force push, restrict delete.
+   - **"Environment branches"** → target `staging` e `production` → **sem PR obrigatório**, block force push, restrict delete, **bypass list = release managers** (só eles podem pushar).
+3. Em **Settings → Environments**, crie `dev`, `staging`, `production` — marque *Required reviewers* em `production` (gate manual para deploy em prod).
+4. Em **Settings → General**, marque *Automatically delete head branches*. Habilite **squash merging** (default para features) e **merge commits** (para quando quiser abrir PR de promoção opcionalmente).
 
 ---
 

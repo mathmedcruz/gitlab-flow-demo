@@ -23,13 +23,9 @@ Closes #
 - [ ] ♻️ Refactor (sem mudança de comportamento)
 - [ ] 📝 Docs
 - [ ] 🔧 Chore / build / CI
-- [ ] 🔥 Hotfix (vai para production)
+- [ ] 🔥 Hotfix (depois do merge, será cherry-picked para `staging` e `production`)
 
-## 🎯 Branch de destino
-
-- [ ] `main` (feature, bugfix, refactor — fluxo normal)
-- [ ] `staging` (promoção de main)
-- [ ] `production` (promoção de staging, ou hotfix via cherry-pick)
+> 💡 Todo PR vai para **`main`**. Promoções `main → staging` e `staging → production` são `git merge --no-ff` local do release manager — sem PR.
 
 ## ✅ Checklist
 

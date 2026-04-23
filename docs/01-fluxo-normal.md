@@ -1,13 +1,17 @@
 # Cenário 1 — Fluxo normal (feature → release em produção)
 
-Este é o **caminho feliz** do GitLab Flow:
+O **caminho feliz** do GitLab Flow no modelo **"PR só para `main`"**:
 
 ```
-feature/x ──PR──► main ──PR──► staging ──PR──► production + tag v0.2.0
-                 (dev)       (staging)       (production)
+feature/x ──PR──► main ──(git merge)──► staging ──(git merge)──► production + tag v0.2.0
+                (dev)                  (staging)                 (production)
 ```
 
-Tudo é PR. Promoção entre branches de ambiente também é PR — um `merge commit` (`--no-ff`) para preservar a linhagem e gerar um checkpoint revisável com changelog automático.
+- Feature entra em `main` via **PR** (onde o review acontece).
+- Promoção `main → staging` e `staging → production` é **`git merge --no-ff` local + push**. Sem PR extra. Sem cerimônia.
+- Bump de versão + tag direto em `production` após o merge.
+
+Isso exige que o release manager tenha permissão de push em `staging` e `production` — ver [05-configuracao-github.md](05-configuracao-github.md) para o ruleset correto.
 
 ---
 
@@ -19,7 +23,7 @@ git pull --rebase origin main
 git checkout -b feature/saudacao-pt-br
 ```
 
-Faça a alteração (ex.: editar `src/app.js`), commit em Conventional Commits:
+Faça a alteração, commit em Conventional Commits:
 
 ```bash
 git add src/app.js
@@ -27,22 +31,14 @@ git commit -m "feat(app): melhora mensagem de boas-vindas"
 git push -u origin feature/saudacao-pt-br
 ```
 
-Mantenha a branch atualizada enquanto trabalha:
-
-```bash
-git fetch origin
-git rebase origin/main
-git push --force-with-lease
-```
-
 ---
 
-## 2) PR `feature/* → main` — **Squash and merge**
+## 2) PR `feature/* → main` — Squash and merge
 
-- Abra o PR via UI ou `gh pr create -B main`.
-- CI verde + aprovação do reviewer.
+- Abra o PR (`gh pr create -B main` ou via UI).
+- CI verde + aprovação.
 - **Squash and merge** → 1 commit conventional em `main`.
-- 🟢 Workflow **Deploy • dev** dispara automaticamente.
+- 🟢 Workflow **Deploy • dev** dispara.
 
 Limpeza:
 
@@ -52,81 +48,65 @@ git pull --rebase origin main
 git branch -d feature/saudacao-pt-br
 ```
 
-A branch remota some sozinha se você ativou *"Automatically delete head branches"* em Settings.
-
 ---
 
-## 3) PR `main → staging` (promoção) — **Merge commit**
+## 3) Promover `main → staging` (git merge local, sem PR)
 
-Quando for hora de candidatar uma release a QA:
-
-- Na UI do GitHub: **Pull requests → New pull request** → base `staging`, compare `main`.
-- Título: `chore(release): promove main → staging para 0.2.0` (ou "Release 0.2.0 candidate").
-- O PR mostra o changelog automático: todos os commits que vão entrar.
-- **Merge commit** (`--no-ff`) — **não squash** aqui. Preserva a linhagem.
-- 🟢 Workflow **Deploy • staging** dispara.
-
-Via CLI (se preferir):
+Quando a release estiver pronta para QA:
 
 ```bash
-gh pr create -B staging -H main \
-  --title "chore(release): promove main → staging para 0.2.0" \
-  --body "Release candidate 0.2.0"
-# aprove e mergeie via UI (merge commit)
+git checkout staging
+git pull --rebase origin staging
+git merge --no-ff origin/main -m "chore(release): promove main → staging para 0.2.0"
+git push origin staging
 ```
 
-QA valida em staging (E2E, regressão, smoke). Se encontrar bug, vai para o [cenário 3 — fix em staging](03-bugfix-staging.md).
+- 🟢 Workflow **Deploy • staging** dispara.
+- QA valida em staging (E2E, regressão, smoke).
+
+### Por que `--no-ff`?
+
+Preserva o "ponto" da promoção no histórico. `git log --graph` mostra claramente **quando** `main` entrou em `staging` e **quais commits** foram juntos. Sem `--no-ff`, o merge seria fast-forward e a linhagem sumiria.
+
+### Se QA achar bug em staging
+
+Vai para o [cenário 3 — fix em staging](03-bugfix-staging.md): fix em `main` + cherry-pick para `staging`. **Nunca** commite direto em `staging`.
 
 ---
 
-## 4) PR `staging → production` (release) — **Merge commit** + bump + tag
+## 4) Promover `staging → production` + bump + tag (git merge local, sem PR)
 
 Quando QA aprovar:
-
-### 4.1 Abra o PR de release
-
-```bash
-gh pr create -B production -H staging \
-  --title "chore(release): 0.2.0" \
-  --body "Release 0.2.0 — staging → production"
-```
-
-- Aprovação (2 reviewers, conforme proteção de production).
-- **Merge commit** (`--no-ff`) via UI.
-- 🔒 Workflow **Deploy • production** pausa esperando aprovação no Environment.
-- 🟢 Após aprovação → deploy.
-
-### 4.2 Bump de versão + tag **direto em `production`**
-
-Após o merge, na sua máquina:
 
 ```bash
 git checkout production
 git pull --rebase origin production
 
-# bump SemVer (minor: 0.1.0 → 0.2.0)
+# 1. merge da promoção
+git merge --no-ff origin/staging -m "chore(release): 0.2.0 — staging → production"
+
+# 2. bump SemVer (escolha patch/minor/major conforme o que entrou)
 npm version 0.2.0 --no-git-tag-version
 git add package.json package-lock.json
 git commit -m "chore(release): bump para 0.2.0"
 
-# tag anotada
+# 3. tag anotada
 git tag -a v0.2.0 -m "Release 0.2.0"
 
-# push branch + tag
+# 4. push branch + tags
 git push origin production --tags
 ```
 
-- Tag `v0.2.0` aparece em **Tags / Releases** no GitHub.
-- Gere release notes a partir da tag (UI: *Draft a new release*).
+- 🔒 Workflow **Deploy • production** pausa esperando aprovação no Environment.
+- 🟢 Após aprovação → deploy em prod.
+- 🏷️ Tag `v0.2.0` fica visível em **Tags / Releases** no GitHub.
 
-> ⚠️ **Exige permissão:** seu usuário precisa ter permissão de push em `production` (bypass da proteção, ou admin). Sem isso, você precisa abrir **outro PR** `chore/bump-0.2.0 → production` com o commit do bump — o que funciona mas adiciona cerimônia.
+### Como escolher a versão (SemVer)
 
-### 4.3 Como escolher a versão (SemVer)
-
-Olhe os Conventional Commits que entraram em `main` desde o último release:
+Olhe os Conventional Commits desde o último release:
 
 - Só `fix:` → **PATCH** (`0.1.1`)
-- Tem `feat:` → **MINOR** (`0.2.0`)
+- Tem algum `feat:` → **MINOR** (`0.2.0`)
 - Tem `feat!:` ou `BREAKING CHANGE:` → **MAJOR** (`1.0.0`)
 
 ---
@@ -139,18 +119,32 @@ Olhe os Conventional Commits que entraram em `main` desde o último release:
 | staging      | `staging`      | 0.1.0  |
 | production   | `production`   | 0.2.0 + tag `v0.2.0` |
 
-`main` e `staging` ficam na versão anterior — é esperado. A versão em `main` só muda quando uma próxima release bumpar de novo em `production`.
+`main` e `staging` ficam na versão anterior — esperado. A versão só muda em `production` no momento do bump.
 
 ---
 
 ## 📅 Cadência recomendada
 
-Promoções previsíveis reduzem ansiedade do time:
+Previsibilidade reduz ansiedade do time:
 
-- **Terça de manhã** → PR `main → staging`
-- **Quinta à tarde** → PR `staging → production` (release)
+- **Terça de manhã** → `git merge --no-ff origin/main` em `staging`.
+- **Quinta à tarde** → merge + bump + tag em `production`.
 
 Janela vazia? **Não force uma release.** A regularidade é da *janela*, não da *obrigação*.
+
+---
+
+## 💡 Checkpoint opcional: PR de promoção quando quiser
+
+Esse modelo **não exige** PR para promoção, mas nada impede você de abrir um quando for útil — por exemplo, pra ter um changelog revisável de release grande:
+
+```bash
+gh pr create -B staging -H main \
+  --title "chore(release): promove main → staging para 0.2.0" \
+  --body "Release candidate 0.2.0"
+```
+
+Aí mergeia pela UI com **merge commit** e segue o mesmo push de deploy. É escolha sua caso a caso.
 
 ---
 

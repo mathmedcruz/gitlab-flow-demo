@@ -39,28 +39,31 @@ Confirme em **Settings → Branches** que as 3 branches aparecem.
 
 ## 2) Proteção de branches (Rulesets)
 
-O GitHub tem dois sistemas: **Branch protection rules** (clássico) e **Rulesets** (novo). Vamos usar **Rulesets** — é mais expressivo e permite aplicar a várias branches de uma vez.
+O GitHub tem dois sistemas: **Branch protection rules** (clássico) e **Rulesets** (novo). Vamos usar **Rulesets** — mais expressivo e permite target por pattern.
+
+No nosso modelo:
+
+- **`main`** → exige PR (é aqui que código é revisado).
+- **`staging`** e **`production`** → **não exigem PR** (promoção é `git merge` local do release manager), mas são protegidas contra push de qualquer outro usuário e contra force-push/delete.
 
 ### Caminho
 
 **Settings → Rules → Rulesets → New ruleset → New branch ruleset**
 
-### Ruleset #1 — "Protected environment branches" (para `main`, `staging`, `production`)
-
-Configure assim:
+### Ruleset #1 — "Main branch protection" (para `main`)
 
 | Campo | Valor |
 | --- | --- |
-| **Ruleset name** | `Protected environment branches` |
+| **Ruleset name** | `Main branch protection` |
 | **Enforcement status** | `Active` |
-| **Target branches** → Add target → Include by pattern | `main`, `staging`, `production` (um por vez) |
-| **Bypass list** | *(deixe vazio — nem admins devem escapar)* |
+| **Target branches** → Include by pattern | `main` |
+| **Bypass list** | *(vazio — nem admins devem escapar)* |
 
-#### Regras a marcar
+#### Regras
 
-- ✅ **Restrict deletions** — ninguém deleta essas branches.
+- ✅ **Restrict deletions**
 - ✅ **Require a pull request before merging**
-  - **Required approvals:** `1` em `main`/`staging`, `2` em `production`.
+  - **Required approvals:** `1`
   - ✅ **Dismiss stale pull request approvals when new commits are pushed**
   - ✅ **Require review from Code Owners**
   - ✅ **Require approval of the most recent reviewable push**
@@ -73,11 +76,40 @@ Configure assim:
 - ✅ **Block force pushes**
 - ✅ **Require signed commits** *(opcional mas recomendado — ver §9)*
 
-> ⚠️ **NÃO marque "Require linear history"** se você quer merge commits (`--no-ff`) nas promoções `main → staging` e `staging → production`. Linear history força squash/rebase em todos os PRs, o que estraga a linhagem das promoções. Para features/bugfix/hotfix use squash merge; para promoções, merge commit.
+> ⚠️ **NÃO marque "Require linear history"** — isso força squash em todo PR. Para `feature/*/bugfix/*/hotfix/* → main` você quer squash (é o default do repo), mas o setting "Require linear history" é rígido demais e pode atrapalhar outros fluxos.
 
-> 💡 **Bypass para release manager:** para poder bumpar versão e criar tag direto em `production` após o merge (ver [01-fluxo-normal.md §4.2](01-fluxo-normal.md)), adicione o usuário responsável pela release à **bypass list** do ruleset. Sem isso, o bump vira um PR separado `chore/bump-0.2.0 → production`.
+### Ruleset #2 — "Environment branches" (para `staging` e `production`)
 
-**Salve.** Agora é **impossível** fazer `git push origin main` direto — só via PR aprovado com CI verde.
+| Campo | Valor |
+| --- | --- |
+| **Ruleset name** | `Environment branches` |
+| **Enforcement status** | `Active` |
+| **Target branches** → Include by pattern | `staging`, `production` |
+| **Bypass list** | **Release managers** (role ou lista de usuários autorizados a promover) |
+
+#### Regras
+
+- ✅ **Restrict deletions** — ninguém deleta.
+- ✅ **Block force pushes** — ninguém reescreve histórico.
+- ✅ **Restrict creations** — ninguém cria branches novas com esse nome.
+- ✅ **Require status checks to pass** *(opcional — rode CI no push para confirmar antes do deploy)*
+- ❌ **NÃO marque "Require a pull request"** — promoção é `git merge` local.
+
+O push só é permitido para quem está na bypass list (release managers). Qualquer outro usuário vai receber erro se tentar `git push origin staging`.
+
+### Resumo visual
+
+| Branch | Exige PR? | Quem pode pushar? | Force-push? | Delete? |
+| --- | --- | --- | --- | --- |
+| `main` | ✅ | ninguém (só via PR aprovado) | ❌ | ❌ |
+| `staging` | ❌ | apenas release managers (via `git merge` local) | ❌ | ❌ |
+| `production` | ❌ | apenas release managers (merge + bump + tag) | ❌ | ❌ |
+
+**Salve os dois rulesets.** Agora:
+
+- `git push origin main` direto → **rejeitado** (precisa de PR).
+- Dev comum tentando `git push origin staging` → **rejeitado**.
+- Release manager fazendo `git merge --no-ff origin/main && git push origin staging` → **permitido**.
 
 ---
 
@@ -136,26 +168,25 @@ Em **Settings → General → Pull Requests**:
 
 - ✅ **Allow squash merging** — marque como padrão e escolha:
   - **Default commit message:** `Pull request title`
-  - Isso garante que, ao fazer squash merge, o commit final em `main` já venha no formato Conventional Commits — perfeito para gerar changelog automático depois.
-- ❌ **Allow merge commits** — desmarque *para PRs de feature*, mas…
-- ✅ **Allow merge commits** — mantenha marcado **se** você usa PRs de promoção (`main → staging`, `staging → production`). Nesses PRs, você quer **merge commit**, não squash, para preservar o histórico de features individuais.
+  - Garante que o commit final em `main` já venha em Conventional Commits.
+- ✅ **Allow merge commits** — deixe marcado (usado se eventualmente você optar por um PR de promoção cerimonial).
 - ❌ **Allow rebase merging** — desmarque (menos previsível).
 - ✅ **Automatically delete head branches** — limpa branches de feature após merge.
 
-> 💡 **Dica de organização:** como squash merge é o padrão pra features, o histórico em `main` fica limpo — um commit por PR. Já as promoções (`main → staging`, `staging → production`) usam merge commit com `--no-ff` e preservam a linhagem.
+> 💡 **Histórico resultante:** `main` fica super limpa (1 commit por feature via squash). `staging` e `production` recebem merge commits `--no-ff` gerados **localmente pelo release manager** — sem PRs intermediários.
 
 ---
 
 ## 6) Política de merge — resumo visual
 
-| Tipo de PR                      | Estratégia       | Por quê                                              |
-| ------------------------------- | ---------------- | ---------------------------------------------------- |
-| `feature/* → main`              | **Squash merge** | Histórico de `main` limpo, 1 commit por feature      |
-| `bugfix/* → main`               | **Squash merge** | Idem                                                 |
-| `hotfix/* → main`               | **Squash merge** | Idem — o SHA resultante é que será cherry-picked     |
-| `main → staging` (promoção)     | **Merge commit** | Preservar linhagem de quais commits foram promovidos |
-| `staging → production` (release)| **Merge commit** | Idem — também facilita rastrear qual release levou o quê |
-| `release/* → production`        | **Merge commit** | Idem                                                 |
+| Ação                              | Via            | Estratégia       | Por quê |
+| --------------------------------- | -------------- | ---------------- | ------- |
+| `feature/* → main`                | PR (UI/CLI)    | **Squash merge** | 1 commit por feature, histórico limpo |
+| `bugfix/* → main`                 | PR (UI/CLI)    | **Squash merge** | Idem |
+| `hotfix/* → main`                 | PR (UI/CLI)    | **Squash merge** | Idem — o SHA resultante é cherry-picked |
+| `main → staging` (promoção)       | **git local**  | `git merge --no-ff` | Preserva linhagem sem exigir PR |
+| `staging → production` (release)  | **git local**  | `git merge --no-ff` + bump + tag | Idem, release em 1 ritual |
+| Cherry-pick de hotfix             | **git local**  | `git cherry-pick <sha>` | Leva só o commit específico para staging e production |
 
 ---
 
@@ -222,13 +253,20 @@ Em **Settings → Pull Requests**:
 
 Faça este teste de fumaça depois de configurar:
 
-1. No seu clone, tente `git push origin main` de um commit local → **deve falhar** com mensagem de protected branch.
+1. No seu clone, tente `git push origin main` de um commit local → **deve falhar** (main exige PR).
 2. Abra um PR com título inválido (ex.: `testando coisas`) → o check **PR title lint** deve falhar.
-3. Abra um PR válido, merge e observe `deploy-dev` rodando automaticamente.
-4. Abra PR `main → staging`, merge, e observe `deploy-staging` rodando.
-5. Abra PR `staging → production`, merge, e observe `deploy-production` **pausando** esperando sua aprovação.
+3. Abra um PR válido, merge (squash) e observe `deploy-dev` rodando automaticamente.
+4. Com um usuário **fora** da bypass list, tente `git push origin staging` → **deve falhar**.
+5. Com o release manager (bypass), rode:
+   ```bash
+   git checkout staging && git pull --rebase origin staging
+   git merge --no-ff origin/main -m "chore(release): promove main → staging"
+   git push origin staging
+   ```
+   → `deploy-staging` roda automaticamente.
+6. Mesma coisa para production + bump + tag → `deploy-production` **pausa** esperando aprovação no Environment.
 
-Se os 5 passos funcionam, o setup está profissional. 🎉
+Se os 6 passos funcionam, o setup está profissional. 🎉
 
 ---
 
