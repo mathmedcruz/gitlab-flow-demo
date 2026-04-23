@@ -1,0 +1,84 @@
+name: Promotion guard
+
+# Garante que as branches de ambiente (staging e production) só recebam
+# PRs de "promoção" vindos das branches permitidas.
+#
+# Regra do modelo simplificado:
+#   - PRs "de desenvolvimento" (feature/*, fix/*, bugfix/*)  → só para main
+#   - PR staging     ← apenas main
+#   - PR production  ← apenas staging, release/*, hotfix/*
+
+on:
+  pull_request:
+    branches: [staging, production]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  check-head-branch:
+    name: Valida origem do PR de promoção
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar head vs base
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          echo "Base branch : $BASE"
+          echo "Head branch : $HEAD"
+          echo "PR URL      : $PR_URL"
+          echo ""
+
+          valid=false
+          case "$BASE" in
+            staging)
+              # Staging só aceita promoção vinda de main
+              if [[ "$HEAD" == "main" ]]; then
+                valid=true
+              fi
+              ;;
+            production)
+              # Production aceita: staging (promoção normal),
+              # release/* (cut de release), hotfix/* (cherry-pick de hotfix)
+              if [[ "$HEAD" == "staging" ]] || \
+                 [[ "$HEAD" == release/* ]] || \
+                 [[ "$HEAD" == hotfix/* ]]; then
+                valid=true
+              fi
+              ;;
+          esac
+
+          if [[ "$valid" == "true" ]]; then
+            echo "✅ Promoção válida: $HEAD → $BASE"
+            exit 0
+          fi
+
+          echo "❌ PR rejeitado pelo Promotion Guard."
+          echo ""
+          echo "As branches de ambiente só aceitam promoções pré-definidas:"
+          echo "  • staging     ← main"
+          echo "  • production  ← staging | release/* | hotfix/*"
+          echo ""
+          echo "Se você está tentando adicionar código novo, abra um PR para 'main' primeiro."
+          echo "Depois, promova via PR main → staging → production."
+          exit 1
+
+      - name: Resumo no GitHub
+        if: always()
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          {
+            echo "### 🔐 Promotion guard"
+            echo ""
+            echo "- **Base:** \`$BASE\`"
+            echo "- **Head:** \`$HEAD\`"
+            echo "- **Status:** ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

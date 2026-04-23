@@ -1,0 +1,76 @@
+name: Deploy • production
+
+on:
+  push:
+    branches: [production]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    name: Deploy para production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.exemplo.local
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci || npm install
+
+      - name: Rodar testes
+        run: npm test
+
+      - name: Ler versão
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: 🚀 Simulando deploy para PRODUCTION
+        env:
+          APP_ENV: production
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA: ${{ steps.meta.outputs.sha_short }}
+        run: |
+          echo "=============================================="
+          echo " Ambiente : $APP_ENV"
+          echo " Versão   : $VERSION"
+          echo " Commit   : $SHA"
+          echo " Branch   : ${GITHUB_REF_NAME}"
+          echo "=============================================="
+          echo "→ build de release..."
+          sleep 1
+          echo "→ health checks pré-deploy..."
+          sleep 1
+          echo "→ publicando artefato em produção..."
+          sleep 1
+          echo "✅ Deploy para PRODUCTION concluído."
+
+      - name: Resumo no GitHub
+        run: |
+          {
+            echo "### 🚀 Deploy PRODUCTION"
+            echo ""
+            echo "- **Versão:** \`${{ steps.meta.outputs.version }}\`"
+            echo "- **Tag sugerida:** \`${{ steps.meta.outputs.tag }}\`"
+            echo "- **Commit:** \`${{ steps.meta.outputs.sha_short }}\`"
+            echo "- **Branch:** \`${GITHUB_REF_NAME}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
