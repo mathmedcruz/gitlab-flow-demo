@@ -8,6 +8,9 @@ concurrency:
   group: deploy-dev
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     name: Deploy para dev
