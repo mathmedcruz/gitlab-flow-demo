@@ -40,7 +40,7 @@ Permitir que você explique e pratique:
 | ------------- | ----------- | ------------------------------------------------- | ------------------------------ |
 | `main`        | dev         | PR de `feature/*` / `bugfix/*` / `hotfix/*`       | `push` em `main`               |
 | `staging`     | staging     | `git merge --no-ff origin/main` local + `push`    | `push` em `staging`            |
-| `production`  | production  | `git merge --no-ff origin/staging` + bump + tag   | `push` em `production`         |
+| `production`  | production  | `git merge --no-ff origin/staging` + `git tag -a` | `push` em `production`         |
 
 > **PR só para `main`.** Promoção entre branches de ambiente é `git merge` local do release manager. Zero PRs extras de promoção.
 
@@ -130,7 +130,7 @@ Versão curta depois do `git push`:
 ### Corolários práticos
 
 - **Promoção é `merge`; hotfix é `cherry-pick`.** Nunca misture.
-- **Bump de versão + tag** acontece **em `production`** no momento da release (ou no cherry-pick de hotfix).
+- **Tag anotada** (`git tag -a vX.Y.Z`) acontece **em `production`** no momento da release (ou no cherry-pick de hotfix). **A tag é a versão** — sem arquivo de versão no repo, sem commit de bump (ver [docs/06 → Como expor a versão em runtime](docs/06-armadilhas-e-faq.md#como-expor-a-versão-em-runtime)). Caso invertido (pacote publicado em registry) também está documentado lá.
 - **`main` reflete "o que está em prod"** até a próxima release mudar isso.
 - **Nomenclatura clara**: `feature/*`, `bugfix/*` (bug em dev/staging), `hotfix/*` (bug em prod).
 

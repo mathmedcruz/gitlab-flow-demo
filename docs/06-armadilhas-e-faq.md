@@ -14,7 +14,7 @@ Pega-ratão do dia a dia em GitLab Flow e perguntas que todo time faz. Baseado e
 
 **Defesa:**
 - Ruleset com **bypass list** restrita a release managers — dev comum é bloqueado no push.
-- Release managers têm disciplina de usar **apenas** `git merge --no-ff origin/<upstream>` ou `git cherry-pick <sha>` nessas branches. Nada de `git commit` direto (exceto bump de versão em `production`).
+- Release managers têm disciplina de usar **apenas** `git merge --no-ff origin/<upstream>` ou `git cherry-pick <sha>` (+ `git tag -a` em `production`) nessas branches. Nada de `git commit` direto.
 - Ver [05-configuracao-github.md](05-configuracao-github.md).
 
 ---
@@ -80,24 +80,22 @@ Ou, mais simples ainda: **só use `bugfix/*` e `hotfix/*`**, pulando `fix/*`. Me
 
 ---
 
-### 7. `npm version` esquecido na release
+### 7. `git tag` esquecido na release
 
-**Sintoma:** release saiu em prod mas `/version` ainda mostra a versão anterior.
+**Sintoma:** promoção `staging → production` foi feita e empurrada, mas o `git tag -a` ficou para trás. `/version` mostra a tag anterior (ou `dev`), `git describe` volta um hash sem tag, e o workflow de deploy que usa `github.ref_name` ou `git describe` publica com rótulo errado.
 
-**Consequência:** monitoria, suporte e debugging ficam confusos. "Que versão está rodando?". Release notes automáticas ficam erradas.
+**Consequência:** monitoria, suporte e debugging ficam confusos. "Que versão está rodando?". Release notes automáticas ficam erradas. Rollback por tag fica impossível porque simplesmente não existe tag nova.
 
-**Defesa:** bump + tag **no mesmo ritual do merge `staging → production`** (ver [01-fluxo-normal.md §4](01-fluxo-normal.md)):
+**Defesa:** tag **no mesmo ritual do merge `staging → production`** (ver [01-fluxo-normal.md §4](01-fluxo-normal.md)):
 
 ```bash
 git checkout production && git pull --rebase origin production
 git merge --no-ff origin/staging -m "chore(release): 0.2.0 — staging → production"
-npm version 0.2.0 --no-git-tag-version
-git commit -am "chore(release): bump para 0.2.0"
 git tag -a v0.2.0 -m "Release 0.2.0"
 git push origin production --tags
 ```
 
-Faz tudo junto, sem espaço pra esquecer. Se quiser, automatize com alias ou `make release`.
+Dois comandos essenciais: `git tag -a` + `git push --tags`. Faz tudo junto, sem espaço pra esquecer. Se quiser, automatize com alias ou `make release` (e opcionalmente um hook que recusa o push em `production` sem tag anotada no HEAD).
 
 ---
 
@@ -160,51 +158,114 @@ Ajuda o time, stakeholders, release notes, changelogs automáticos. Zero custo e
 
 ---
 
-### E se o projeto não tiver `package.json` (ou `pyproject.toml`, etc)?
+### Como expor a versão em runtime
 
-O GitLab Flow **não depende** de arquivo de versão — a **tag git é a versão**. Se o repositório não tem `package.json`, `pyproject.toml`, `Cargo.toml` ou similar (caso comum em serviços Django/Rails/Go internos), o ritual de release fica até mais simples: sem commit de bump, sem conflito de merge em arquivo de versão, sem duplicação de fonte de verdade.
+Esse é o modelo **padrão** deste projeto: **a tag git é a versão**, sem `package.json`/`pyproject.toml`/`Cargo.toml` com campo `version`. O ritual de release (ver [01-fluxo-normal.md §4](01-fluxo-normal.md)) termina em `git tag -a vX.Y.Z` + `git push --tags` — e pronto. Sem commit de bump, sem conflito de merge em arquivo de versão, sem duplicação de fonte de verdade.
 
-**Ritual de release sem arquivo de versão** (adaptação do [01-fluxo-normal.md §4](01-fluxo-normal.md)):
+A pergunta que sobra é: **como o app sabe qual versão está rodando?** (para `/version`, header HTTP, tag no Sentry, campo em log estruturado).
+
+Duas opções, em ordem de preferência:
+
+#### 1. Build-time (recomendado)
+
+Injete a tag como build arg no Docker e leia via env var. Exemplo com um serviço Python (FastAPI):
+
+```dockerfile
+# Dockerfile
+FROM python:3.12-slim
+ARG VERSION=dev
+ENV APP_VERSION=$VERSION
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+No workflow de deploy (`deploy-production.yml`), puxe a tag do git (no `production` branch, `git describe --tags --exact-match` devolve a tag recém-criada):
+
+```yaml
+- name: Resolve version
+  id: v
+  run: echo "version=$(git describe --tags --exact-match)" >> "$GITHUB_OUTPUT"
+
+- name: Build image
+  run: docker build --build-arg VERSION=${{ steps.v.outputs.version }} -t myapp:${{ steps.v.outputs.version }} .
+```
+
+No código da aplicação:
+
+```python
+# app/main.py
+import os
+from fastapi import FastAPI
+
+APP_VERSION = os.getenv("APP_VERSION", "dev")
+
+app = FastAPI()
+
+@app.get("/version")
+def version():
+    return {"version": APP_VERSION}
+```
+
+Equivalente em Django (`settings.py` + view) ou Flask é direto — lê `os.getenv("APP_VERSION", "dev")` e devolve no endpoint/health-check. É o mesmo valor que você passa para `sentry_sdk.init(release=APP_VERSION)` e inclui no log estruturado.
+
+#### 2. Runtime via git (só funciona se `.git` estiver no runtime)
+
+Resolver a tag no startup com `git describe`. Funciona em dev (onde você tem `.git`), mas **só** funciona em produção se `.git` estiver presente no container — raro em imagens enxutas. Prefira build-time; use isto como fallback:
+
+```python
+# app/version.py
+import os
+import subprocess
+
+def resolve_version() -> str:
+    env = os.getenv("APP_VERSION")
+    if env:
+        return env
+    try:
+        return subprocess.check_output(
+            ["git", "describe", "--tags", "--always"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "dev"
+
+APP_VERSION = resolve_version()
+```
+
+**Critério do bump SemVer** (pelos Conventional Commits desde a última tag):
+
+- só `fix:` / `refactor:` / `chore:` → **PATCH**
+- algum `feat:` → **MINOR**
+- breaking change (`feat!:` / `BREAKING CHANGE:`) → **MAJOR**
+
+---
+
+### E se meu projeto **é** um pacote publicado (PyPI, npm, crates.io)?
+
+Aí o modelo "tag é a versão" não fecha sozinho — o registry **exige** `version` no manifest (`pyproject.toml`, `package.json`, `Cargo.toml`). Nesse caso, o fluxo do [01-fluxo-normal.md §4](01-fluxo-normal.md) ganha um passo extra entre o merge e a tag:
 
 ```bash
 git checkout production && git pull --rebase origin production
 git merge --no-ff origin/staging -m "chore(release): 0.2.0 — staging → production"
+
+# passo extra: bump no manifest (pacote publicado)
+poetry version 0.2.0         # ou: npm version 0.2.0 --no-git-tag-version
+git commit -am "chore(release): bump para 0.2.0"
+
 git tag -a v0.2.0 -m "Release 0.2.0"
 git push origin production --tags
 ```
 
-Só isso. Sem `npm version`, sem commit de bump. O passo `npm version ... && git commit -am "chore(release): bump ..."` do fluxo normal simplesmente **desaparece**.
+Mesmo assim, **a tag continua sendo a fonte de verdade** — o commit de bump é só pra satisfazer o registry. Mantenha-os sincronizados (CI que falha se `pyproject.toml:version` ≠ `git describe --tags --exact-match` é barato e evita o pior caso).
 
-**Critério do bump** continua igual (SemVer pelos prefixos de Conventional Commits desde a última tag):
+Regra prática pra decidir:
 
-- só `fix:` / `refactor:` / `chore:` → **PATCH**
-- algum `feat:` → **MINOR**
-- breaking change → **MAJOR**
-
-**Se precisar expor a versão em runtime** (endpoint `/version`, header HTTP, Sentry, logs), duas opções:
-
-1. **Build-time** — injete a tag como build arg no Docker e leia via env var:
-   ```dockerfile
-   ARG VERSION
-   ENV APP_VERSION=$VERSION
-   ```
-   No workflow de deploy: `docker build --build-arg VERSION=${{ github.ref_name }} ...`
-
-2. **Runtime via git** — `git describe --tags --always` no startup. Só funciona se `.git` estiver presente no runtime (geralmente não em containers de produção); use build-time quando em dúvida.
-
-**Vantagens desse modelo:**
-
-- Zero commit de *"chore: bump version"* poluindo histórico.
-- Zero conflito de merge em arquivo de versão entre features paralelas.
-- Uma única fonte de verdade: a tag anotada.
-- Re-tag / retag é trivial (não precisa reverter commit de bump).
-
-**Quando **não** usar:**
-
-- Pacotes publicados em registry público (npm, PyPI, crates.io) — o registry exige versão no manifest. Mantenha o arquivo e faça o bump.
-- Bibliotecas consumidas por outros repos via versão fixa no lockfile deles — idem.
-
-Este padrão é para **serviços/apps internos deployados por tag**, onde a tag git é suficiente como versão.
+- **Serviço/app interno deployado por tag** (FastAPI/Django/Flask/Rails/Go atrás de Docker) → sem arquivo de versão, só tag. Fluxo padrão deste projeto.
+- **Biblioteca publicada em registry público** → tag + bump no manifest.
+- **Biblioteca interna consumida por outros repos via versão fixa no lockfile deles** → idem biblioteca publicada.
 
 ---
 

@@ -103,7 +103,7 @@ O push só é permitido para quem está na bypass list (release managers). Qualq
 | --- | --- | --- | --- | --- |
 | `main` | ✅ | ninguém (só via PR aprovado) | ❌ | ❌ |
 | `staging` | ❌ | apenas release managers (via `git merge` local) | ❌ | ❌ |
-| `production` | ❌ | apenas release managers (merge + bump + tag) | ❌ | ❌ |
+| `production` | ❌ | apenas release managers (merge + tag) | ❌ | ❌ |
 
 **Salve os dois rulesets.** Agora:
 
@@ -185,7 +185,7 @@ Em **Settings → General → Pull Requests**:
 | `bugfix/* → main`                 | PR (UI/CLI)    | **Squash merge** | Idem |
 | `hotfix/* → main`                 | PR (UI/CLI)    | **Squash merge** | Idem — o SHA resultante é cherry-picked |
 | `main → staging` (promoção)       | **git local**  | `git merge --no-ff` | Preserva linhagem sem exigir PR |
-| `staging → production` (release)  | **git local**  | `git merge --no-ff` + bump + tag | Idem, release em 1 ritual |
+| `staging → production` (release)  | **git local**  | `git merge --no-ff` + `git tag -a` | Idem, release em 1 ritual (tag é a versão) |
 | Cherry-pick de hotfix             | **git local**  | `git cherry-pick <sha>` | Leva só o commit específico para staging e production |
 
 ---
@@ -264,7 +264,7 @@ Faça este teste de fumaça depois de configurar:
    git push origin staging
    ```
    → `deploy-staging` roda automaticamente.
-6. Mesma coisa para production + bump + tag → `deploy-production` **pausa** esperando aprovação no Environment.
+6. Mesma coisa para production + `git tag -a` → `deploy-production` **pausa** esperando aprovação no Environment.
 
 Se os 6 passos funcionam, o setup está profissional. 🎉
 

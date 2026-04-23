@@ -9,7 +9,7 @@ main       ●───────●────────● ← hotfix vir
                    ↓ cherry-pick
 staging    ●───────○────────● ← recebe esse commit
                    ↓ cherry-pick
-production ●───────○────────● + bump patch + tag v0.2.1
+production ●───────○────────● + tag patch v0.2.1
 ```
 
 ---
@@ -65,25 +65,22 @@ git push origin staging
 
 ---
 
-## 4) Cherry-pick para `production` + bump patch + tag
+## 4) Cherry-pick para `production` + tag patch
 
 ```bash
 git checkout production
 git pull --rebase origin production
 git cherry-pick 9a8b7c6
 
-# Bump patch (0.2.0 → 0.2.1)
-npm version 0.2.1 --no-git-tag-version
-git add package.json package-lock.json
-git commit -m "chore(release): bump para 0.2.1"
-
-# Tag do hotfix
+# Tag patch (0.2.0 → 0.2.1) — a tag é a versão
 git tag -a v0.2.1 -m "Hotfix 0.2.1 — corrige /version"
 git push origin production --tags
 ```
 
 - 🔒 Workflow **Deploy • production** pausa para aprovação.
 - 🟢 Após aprovação, o fix sai em **produção**.
+
+> 💡 Sem `npm version`, sem commit de bump. A tag já é a versão — consistente com o [fluxo normal §4](01-fluxo-normal.md).
 
 ---
 
@@ -98,11 +95,11 @@ git push origin --delete hotfix/PROJ-301-version-endpoint
 
 ## Estado final
 
-| Ambiente     | Branch         | Versão | Tem o fix? |
-| ------------ | -------------- | ------ | ---------- |
-| dev          | `main`         | 0.2.0  | ✅ (PR merge)    |
-| staging      | `staging`      | 0.2.0  | ✅ (cherry-pick) |
-| production   | `production`   | 0.2.1  | ✅ (cherry-pick + tag) |
+| Ambiente     | Branch         | Versão (`git describe`) | Tem o fix? |
+| ------------ | -------------- | ----------------------- | ---------- |
+| dev          | `main`         | `v0.2.0-1-g9a8b7c6`     | ✅ (PR merge)    |
+| staging      | `staging`      | `v0.2.0-1-g...`         | ✅ (cherry-pick) |
+| production   | `production`   | **`v0.2.1`** (tag exata) | ✅ (cherry-pick + tag) |
 
 ---
 

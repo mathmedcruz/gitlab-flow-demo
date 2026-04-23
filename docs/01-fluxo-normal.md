@@ -74,7 +74,7 @@ Vai para o [cenário 3 — fix em staging](03-bugfix-staging.md): fix em `main` 
 
 ---
 
-## 4) Promover `staging → production` + bump + tag (git merge local, sem PR)
+## 4) Promover `staging → production` + tag (git merge local, sem PR)
 
 Quando QA aprovar:
 
@@ -85,15 +85,10 @@ git pull --rebase origin production
 # 1. merge da promoção
 git merge --no-ff origin/staging -m "chore(release): 0.2.0 — staging → production"
 
-# 2. bump SemVer (escolha patch/minor/major conforme o que entrou)
-npm version 0.2.0 --no-git-tag-version
-git add package.json package-lock.json
-git commit -m "chore(release): bump para 0.2.0"
-
-# 3. tag anotada
+# 2. tag anotada — a tag é a versão
 git tag -a v0.2.0 -m "Release 0.2.0"
 
-# 4. push branch + tags
+# 3. push branch + tags
 git push origin production --tags
 ```
 
@@ -101,11 +96,13 @@ git push origin production --tags
 - 🟢 Após aprovação → deploy em prod.
 - 🏷️ Tag `v0.2.0` fica visível em **Tags / Releases** no GitHub.
 
+> 💡 **Sem arquivo de versão, sem commit de bump.** A **tag git é a versão** — nada de `npm version` / `poetry version` / edição de manifest. Zero commit de *"chore: bump"* poluindo histórico, zero conflito de merge em arquivo de versão. Para expor a tag em runtime (endpoint `/version`, Sentry, logs), ver [06-armadilhas-e-faq.md → Como expor a versão em runtime](06-armadilhas-e-faq.md#como-expor-a-versão-em-runtime). Se seu projeto **é** um pacote publicado (PyPI/npm), ver o caso invertido no mesmo arquivo.
+
 ### Como escolher a versão (SemVer)
 
-Olhe os Conventional Commits desde o último release:
+Olhe os Conventional Commits desde a última tag:
 
-- Só `fix:` → **PATCH** (`0.1.1`)
+- Só `fix:` / `refactor:` / `chore:` → **PATCH** (`0.1.1`)
 - Tem algum `feat:` → **MINOR** (`0.2.0`)
 - Tem `feat!:` ou `BREAKING CHANGE:` → **MAJOR** (`1.0.0`)
 
@@ -113,13 +110,13 @@ Olhe os Conventional Commits desde o último release:
 
 ## ✅ Checagem final
 
-| Ambiente     | Branch         | Versão |
-| ------------ | -------------- | ------ |
-| dev          | `main`         | 0.1.0  |
-| staging      | `staging`      | 0.1.0  |
-| production   | `production`   | 0.2.0 + tag `v0.2.0` |
+| Ambiente     | Branch         | Versão (`git describe`) |
+| ------------ | -------------- | ----------------------- |
+| dev          | `main`         | `v0.1.0-3-gabc123` (3 commits à frente da última tag) |
+| staging      | `staging`      | `v0.1.0` (ou idem, se ficou à frente) |
+| production   | `production`   | **`v0.2.0`** (tag exata) |
 
-`main` e `staging` ficam na versão anterior — esperado. A versão só muda em `production` no momento do bump.
+`main` e `staging` não têm tag nova — esperado. A nova tag só nasce em `production` no momento do push com `--tags`. `git describe --tags --always` resolve tudo sem precisar de arquivo de versão.
 
 ---
 
@@ -128,7 +125,7 @@ Olhe os Conventional Commits desde o último release:
 Previsibilidade reduz ansiedade do time:
 
 - **Terça de manhã** → `git merge --no-ff origin/main` em `staging`.
-- **Quinta à tarde** → merge + bump + tag em `production`.
+- **Quinta à tarde** → merge + tag em `production`.
 
 Janela vazia? **Não force uma release.** A regularidade é da *janela*, não da *obrigação*.
 
