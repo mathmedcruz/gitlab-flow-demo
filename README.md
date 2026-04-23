@@ -54,8 +54,6 @@ Permitir que você explique e pratique:
 │   ├── workflows/
 │   │   ├── ci.yml                    # Testes em PRs e pushes
 │   │   ├── pr-lint.yml               # Valida título do PR (Conventional Commits)
-│   │   ├── promotion-guard.yml       # Só aceita PRs de promoção permitidos em staging/production
-│   │   ├── promote.yml               # Promoção manual sem PR (gh workflow run)
 │   │   ├── deploy-dev.yml            # Deploy ao dar push em main
 │   │   ├── deploy-staging.yml        # Deploy ao dar push em staging
 │   │   └── deploy-production.yml     # Deploy ao dar push em production
@@ -71,8 +69,7 @@ Permitir que você explique e pratique:
 │   ├── 03-bugfix-staging.md          # Bug descoberto em STAGING
 │   ├── 04-bugfix-dev.md              # Bug descoberto em DEV
 │   ├── 05-configuracao-github.md     # Proteções, rulesets e environments
-│   ├── 06-modelo-simplificado.md     # PR só em main, resto é promoção
-│   └── 07-promocao-automatizada.md   # Promoção manual via gh workflow run (sem PR)
+│   └── 06-armadilhas-e-faq.md        # Pega-ratão comum + FAQ
 ├── CHANGELOG.md
 ├── package.json
 └── README.md
@@ -103,9 +100,10 @@ O passo a passo completo (rulesets, environments, CODEOWNERS, Conventional Commi
 Versão curta depois do `git push`:
 
 1. Crie as branches `staging` e `production` a partir de `main`.
-2. Em **Settings → Rules → Rulesets**, crie um ruleset para `main`, `staging` e `production` com: require PR, require CI + `PR title lint`, require linear history, require Code Owners review, block force pushes, restrict deletions.
+2. Em **Settings → Rules → Rulesets**, crie um ruleset para `main`, `staging` e `production` com: require PR, require CI + `PR title lint`, require Code Owners review, block force pushes, restrict deletions. **Não** marque *Require linear history* — isso quebra os merge commits das promoções.
 3. Em **Settings → Environments**, crie `dev`, `staging`, `production` — marque *Required reviewers* em `production` (é o gate manual para deploy em prod).
-4. Em **Settings → General**, marque *Automatically delete head branches* e configure squash merge como default com "Pull request title" como commit message.
+4. Em **Settings → General**, marque *Automatically delete head branches*. Habilite tanto **squash merging** (default para features/bugfix/hotfix) quanto **merge commits** (usado nas promoções `main → staging` e `staging → production`).
+5. (Opcional) adicione o release manager à **bypass list** do ruleset de `production` para que ele possa pushar diretamente o commit de bump + tag após o merge do PR de release.
 
 ---
 
@@ -116,17 +114,26 @@ Versão curta depois do `git push`:
 3. **[Bugfix: bug em staging](docs/03-bugfix-staging.md)**
 4. **[Bugfix: bug em dev](docs/04-bugfix-dev.md)**
 5. **[Configuração profissional do GitHub (rulesets, environments, CODEOWNERS…)](docs/05-configuracao-github.md)**
-6. **[Modelo simplificado: PR só para main, o resto é promoção](docs/06-modelo-simplificado.md)**
-7. **[Promoção manual via pipeline: sem PR, via `gh workflow run`](docs/07-promocao-automatizada.md)**
+6. **[Armadilhas comuns e FAQ](docs/06-armadilhas-e-faq.md)**
 
 ---
 
-## 🧠 Princípios que os cenários reforçam
+## 🧠 As 3 regras do GitLab Flow
 
-- **Upstream first:** toda correção começa em `main` e desce.
-- **Promoção é *merge*, não cherry-pick.** Cherry-pick só é usado em hotfixes quando precisamos puxar um commit "para cima" (voltar para `main`) ou quando não queremos levar tudo que está em `main` para um ambiente inferior.
-- **Production é imutável exceto por promoção:** só chega em production o que passou por staging.
-- **Tags de release** (`vX.Y.Z`) vivem em `production`.
+1. **Upstream first** — toda mudança (feature, bugfix, hotfix) entra em `main` **antes** de qualquer branch de ambiente. Nenhuma exceção.
+2. **Merges fluem para baixo** — `main → staging → production`. Nunca o contrário. Branches de ambiente não recebem commits diretos, só merges (promoção) ou cherry-picks (hotfix).
+3. **Cada branch de ambiente = 1 ambiente real** — push/merge naquela branch dispara deploy automático. Sem mapeamento indireto.
+
+### Corolários práticos
+
+- **Promoção é `merge`; hotfix é `cherry-pick`.** Nunca misture.
+- **Bump de versão + tag** acontece **em `production`** no momento da release (ou no cherry-pick de hotfix).
+- **`main` reflete "o que está em prod"** até a próxima release mudar isso.
+- **Nomenclatura clara**: `feature/*`, `bugfix/*` (bug em dev/staging), `hotfix/*` (bug em prod).
+
+### Resumo de uma linha
+
+> **Tudo começa em `main`. Se o bug está em prod, cherry-pick desce. Se é release planejado, merge desce. Env branches são só espelhos do que `main` já sancionou.**
 
 ---
 

@@ -1,77 +1,73 @@
-# Cenário 4 — Bug descoberto em dev 👩‍🔬
+# Cenário 4 — Bugfix em dev 👩‍🔬
 
-**Situação:** você mergeou uma feature em `main`, o deploy automático levou para **dev**, e ali mesmo o time detectou um bug. O código **ainda não foi promovido** para staging nem production.
+**Situação:** feature mergeada em `main`, deploy automático levou para **dev**, time detectou um bug. O código **ainda não foi promovido** para staging nem production.
 
-Este é o caso **mais simples** — é praticamente o fluxo normal.
+Filosofia: **só um PR para `main`**, sem cherry-pick. Quando a próxima promoção downstream rolar, o fix já vai junto.
+
+```
+main       ●───────●────── ← bugfix entra em main (squash)
+staging    ●─────────────── (intocado — recebe na próxima promoção)
+production ●───────────────
+```
+
+Esse é **o bug mais barato** — ninguém externo sente, nada foi promovido.
 
 ---
 
-## Estratégia: fix em `main`, segue a vida
-
-### 1) Criar branch de bugfix a partir de `main`
+## 1) Branch de bugfix a partir de `main`
 
 ```bash
 git checkout main
-git pull
-git checkout -b bugfix/saudacao-encoding
+git pull --rebase origin main
+git checkout -b bugfix/PROJ-245-saudacao-encoding
 ```
 
-Faça o fix, commit e push:
+Fix, commit, push:
 
 ```bash
-git commit -am "fix: corrige encoding na mensagem de saudação"
-git push -u origin bugfix/saudacao-encoding
+git commit -am "fix(app): corrige encoding na mensagem de saudação"
+git push -u origin bugfix/PROJ-245-saudacao-encoding
 ```
 
-### 2) PR para `main`
+---
 
-- Abre PR `bugfix/* → main`.
-- CI roda, reviewer aprova, merge.
-- 🟢 Deploy automático em **dev** com o fix.
+## 2) PR `bugfix/* → main` — Squash and merge
 
-### 3) Valida em dev
+CI verde, review, squash. 🟢 Deploy em **dev** com o fix.
 
-O time valida. Nada precisa ser feito em `staging` ou `production` ainda — o código **nunca saiu** de `main`/dev.
+Limpeza:
 
-### 4) Quando o momento chegar, promove normalmente
-
-Segue o [cenário 1](01-fluxo-normal.md) a partir do passo 3.
+```bash
+git checkout main && git pull --rebase origin main
+git branch -d bugfix/PROJ-245-saudacao-encoding
+```
 
 ---
 
 ## 💡 Quando vale rollback em dev?
 
-Normalmente **não vale**: dev é ambiente de integração — se estiver quebrado, o fix é seguir em frente com o bugfix. Só considere reverter se a branch de feature introduziu algo que **bloqueia o trabalho do time** (impede outras features de subirem) e o fix vai demorar.
-
-Nesse caso, revert o merge da feature em `main`:
+Normalmente **não vale** — dev é ambiente de integração. Seguir com o bugfix é o caminho. Só considere reverter se a feature introduziu algo que **bloqueia o trabalho dos outros devs** e o fix vai demorar:
 
 ```bash
-git checkout main
-git pull
-git revert -m 1 <sha-do-merge-da-feature-problematica>
-git push origin main
+git checkout main && git pull --rebase origin main
+git checkout -b revert/feature-problematica
+git revert <sha-do-commit-problematico>
+git push -u origin revert/feature-problematica
+# PR → main, merge
 ```
 
-- 🟢 Deploy em dev com o estado anterior.
-- A feature volta para a branch original para correção.
-
 ---
 
-## 🧠 Lição do cenário
+## 📚 Diferença `bugfix` vs `fix` vs `hotfix`
 
-- Bug em dev é **o bug mais barato** que existe: ninguém sente, nada foi promovido.
-- Isso é exatamente o que justifica ter um ambiente de **dev sempre espelhando `main`**.
-- Fluxo é sempre o mesmo: **branch → PR → main → dev**. Nunca ajuste "à mão" em dev.
+**Tecnicamente são a mesma coisa** — correção de bug. A diferença é **onde o bug foi encontrado**:
 
----
+| Prefixo     | Onde o bug foi visto | Precisa cherry-pick? | Urgência |
+| ----------- | -------------------- | -------------------- | -------- |
+| `bugfix/*`  | **dev**              | ❌ (só `main` tem)       | Baixa |
+| `fix/*`     | **staging**          | ✅ para `staging`        | Média |
+| `hotfix/*`  | **production**       | ✅ para `staging` e `production` + tag patch | **Alta** |
 
-## 🏁 Fim da série
+Muitos times simplificam para apenas `bugfix/*` (dev/staging) e `hotfix/*` (prod). Use o que o time preferir, **contanto que seja consistente**.
 
-Você passou por:
-
-1. [Fluxo normal](01-fluxo-normal.md) — feature até produção.
-2. [Hotfix em produção](02-hotfix-producao.md) — urgência + upstream first com cherry-pick.
-3. [Bugfix em staging](03-bugfix-staging.md) — staging como rede de segurança.
-4. Este — bugfix em dev.
-
-Resumo em uma frase: **a correção sempre começa em `main`; o que muda é como ela chega aos ambientes abaixo**.
+Próximo doc: [05 — Configuração do GitHub](05-configuracao-github.md) · [06 — Armadilhas comuns](06-armadilhas-e-faq.md).

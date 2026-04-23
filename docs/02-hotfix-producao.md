@@ -1,112 +1,136 @@
 # Cenário 2 — Hotfix em produção 🔥
 
-**Situação:** o app está em produção, alguém abre um ticket crítico (ex.: `/version` quebrado em produção) e você **precisa corrigir rápido**.
+**Situação:** produção está em `v0.2.0`, bug crítico reportado, precisa consertar **agora** sem esperar o próximo release. O bug está em `main`, `staging` e `production`.
 
-O desafio é respeitar o **upstream first** sem atrasar o conserto.
+Filosofia: **upstream first** — fix entra em `main` primeiro, depois desce via **cherry-pick** (não merge) para `staging` e `production`. Cherry-pick porque queremos levar **só** o commit do fix, não tudo que tem em `main`.
+
+```
+main       ●───────●────────● ← hotfix vira 1 commit em main (squash)
+                   ↓ cherry-pick
+staging    ●───────○────────● ← recebe esse commit
+                   ↓ cherry-pick
+production ●───────○────────● + bump patch + tag v0.2.1
+```
 
 ---
 
-## Estratégia recomendada: fix em `main` + cherry-pick para `production`
+## 1) Branch de hotfix **a partir de `main`**
 
-Essa é a forma mais segura. Garante que o fix **nunca some** quando promoções futuras sobrescreverem production.
-
-### 1) Criar branch de hotfix a partir de `main`
+> ⚠️ **Não tem atalho.** Mesmo que a branch quebrada seja `production`, **parta de `main`**. Se partir de `production`, o fix não estará em `main` e a próxima promoção normal pode reintroduzir o bug.
 
 ```bash
 git checkout main
-git pull
-git checkout -b hotfix/version-endpoint
+git pull --rebase origin main
+git checkout -b hotfix/PROJ-301-version-endpoint
 ```
 
-Faça o fix (ex.: corrigir `/version` em `src/app.js`), commit:
+Correção **mínima possível** — hotfix não é hora de refatorar:
 
 ```bash
-git commit -am "fix: corrige payload do endpoint /version"
-git push -u origin hotfix/version-endpoint
+git commit -am "fix(app): corrige payload do endpoint /version"
+git push -u origin hotfix/PROJ-301-version-endpoint
 ```
 
-### 2) PR para `main` (fluxo normal, com CI)
+---
 
-- Abre PR `hotfix/version-endpoint → main`.
-- CI roda, reviewer aprova, **merge**.
-- 🟢 Deploy automático em **dev**.
+## 2) PR `hotfix/* → main` — review acelerado, **Squash and merge**
 
-Anote o **SHA do commit de merge em main** — você vai precisar dele:
+Mesmo sob pressão: **CI verde + 1 aprovação**. Squash é essencial — resulta em **1 SHA** que vai ser cherry-pickado duas vezes.
+
+Depois do merge, anote o SHA:
 
 ```bash
 git checkout main
-git pull
-git log -1 --pretty=format:%H   # <-- guarde esse SHA, ex: abc1234
+git pull --rebase origin main
+git log --oneline -1
+# Exemplo: 9a8b7c6 fix(app): corrige payload do endpoint /version
 ```
 
-### 3) Cherry-pick para `production`
+🟢 Deploy automático em **dev** com o fix.
+
+---
+
+## 3) Cherry-pick para `staging`
+
+```bash
+git checkout staging
+git pull --rebase origin staging
+git cherry-pick 9a8b7c6
+git push origin staging
+```
+
+🟢 Deploy em **staging**. QA faz smoke rápido (~10 min) para confirmar.
+
+> ⚠️ **Branch protegida:** se `staging` só aceita via PR, crie uma branch temporária:
+> ```bash
+> git checkout -b hotfix/apply-stg
+> git cherry-pick 9a8b7c6
+> git push -u origin hotfix/apply-stg
+> gh pr create -B staging
+> ```
+
+---
+
+## 4) Cherry-pick para `production` + bump patch + tag
 
 ```bash
 git checkout production
-git pull
-git cherry-pick abc1234
-```
+git pull --rebase origin production
+git cherry-pick 9a8b7c6
 
-Se houver conflito (raro em hotfix pequeno), resolva e `git cherry-pick --continue`.
+# Bump patch (0.2.0 → 0.2.1)
+npm version 0.2.1 --no-git-tag-version
+git add package.json package-lock.json
+git commit -m "chore(release): bump para 0.2.1"
 
-Abra o PR `production ← cherry-pick` ou faça o push direto (dependendo da proteção configurada):
-
-```bash
-git push origin production
+# Tag do hotfix
+git tag -a v0.2.1 -m "Hotfix 0.2.1 — corrige /version"
+git push origin production --tags
 ```
 
 - 🔒 Workflow **Deploy • production** pausa para aprovação.
 - 🟢 Após aprovação, o fix sai em **produção**.
 
-### 4) Cherry-pick para `staging` (ou aguardar a próxima promoção)
+---
 
-Para manter staging coerente com production imediatamente:
-
-```bash
-git checkout staging
-git pull
-git cherry-pick abc1234
-git push origin staging
-```
-
-- 🟢 Deploy automático em **staging**.
-
-### 5) Tag do hotfix
+## 5) Limpeza
 
 ```bash
-git checkout production
-git pull
-git tag -a v0.2.1 -m "Hotfix 0.2.1 — corrige /version"
-git push origin v0.2.1
+git branch -d hotfix/PROJ-301-version-endpoint
+git push origin --delete hotfix/PROJ-301-version-endpoint
 ```
-
-Atualize o `CHANGELOG.md` na sua próxima entrada em `main`.
 
 ---
 
 ## Estado final
 
-| Ambiente     | Branch         | Tem o fix? |
-| ------------ | -------------- | ---------- |
-| dev          | `main`         | ✅ (PR merge)  |
-| staging      | `staging`      | ✅ (cherry-pick) |
-| production   | `production`   | ✅ (cherry-pick) |
+| Ambiente     | Branch         | Versão | Tem o fix? |
+| ------------ | -------------- | ------ | ---------- |
+| dev          | `main`         | 0.2.0  | ✅ (PR merge)    |
+| staging      | `staging`      | 0.2.0  | ✅ (cherry-pick) |
+| production   | `production`   | 0.2.1  | ✅ (cherry-pick + tag) |
 
 ---
 
-## ❗ Anti-padrão (não faça isso)
+## ❗ Anti-padrões
 
-- ❌ **Fazer o fix direto em `production`** e nunca levar para `main`.
-  > Resultado: na próxima promoção normal, o fix some porque `main` não o tem.
-- ❌ **Fazer o fix a partir de `production` e dar merge em `main`.**
-  > Funciona, mas traz para `main` todo o estado que está em production — incluindo commits antigos que não voltavam sozinhos. Use cherry-pick quando quiser mover **um commit específico** entre branches de ambiente.
+- ❌ **Fix direto em `production`** sem passar por `main`.
+- ❌ **Merge `main → production`** em vez de cherry-pick (leva tudo de main, não só o fix).
+- ❌ **Hotfix mexendo no schema de banco** — migration destrutiva + cherry-pick = desastre. Se precisa mudar schema, não é hotfix, é release normal.
 
 ---
 
-## 🧠 Por que cherry-pick (e não merge) para hotfix?
+## 🆘 Conflito no cherry-pick?
 
-Porque `main` costuma estar **à frente** de `production`. Se você mergear `main → production` para levar o hotfix, vai levar junto **tudo que estava em main mas ainda não promovido** — o que pode quebrar prod. O cherry-pick leva **só o commit do fix**.
+Acontece quando `staging`/`production` divergiram demais de `main` desde a última release:
 
-Já no sentido `production → main`, o merge é seguro porque `main` é quem está à frente — mas quando o hotfix **começou em main**, você não precisa desse merge: `main` já tem o commit.
+```bash
+# resolva manualmente os arquivos em conflito
+git add <arquivos>
+git cherry-pick --continue
+# teste localmente antes de pushar!
+```
 
-Próximo cenário: [03 — Bug em staging](03-bugfix-staging.md).
+Conflito grande = env branches envelheceram. Faça uma promoção completa `main → staging` assim que o incidente passar.
+
+Próximo cenário: [03 — Fix em staging](03-bugfix-staging.md).

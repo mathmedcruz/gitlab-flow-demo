@@ -1,125 +1,133 @@
-# Cenário 1 — Fluxo normal (feature → produção)
+# Cenário 1 — Fluxo normal (feature → release em produção)
 
-Este é o **caminho feliz**. Uma feature nasce em uma branch de trabalho, vai para `main` (deploy em **dev**), é promovida para `staging` e, por fim, promovida para `production`.
+Este é o **caminho feliz** do GitLab Flow:
 
 ```
-feature/saudacao-pt-br ──► main ──► staging ──► production
-                           │          │            │
-                          DEV       STAGING       PROD
+feature/x ──PR──► main ──PR──► staging ──PR──► production + tag v0.2.0
+                 (dev)       (staging)       (production)
 ```
+
+Tudo é PR. Promoção entre branches de ambiente também é PR — um `merge commit` (`--no-ff`) para preservar a linhagem e gerar um checkpoint revisável com changelog automático.
 
 ---
 
-## 1) Começar a feature
-
-Sempre a partir de `main` atualizada:
+## 1) Feature em uma branch a partir de `main`
 
 ```bash
 git checkout main
-git pull
+git pull --rebase origin main
 git checkout -b feature/saudacao-pt-br
 ```
 
-Faça a alteração (por exemplo, troque a mensagem em `src/app.js`):
-
-```diff
-- message: 'Olá! Este é o app de demonstração do GitLab Flow.',
-+ message: 'Olá, mundo! Bem-vindo ao GitLab Flow Demo.',
-```
-
-Commit e push:
+Faça a alteração (ex.: editar `src/app.js`), commit em Conventional Commits:
 
 ```bash
 git add src/app.js
-git commit -m "feat: melhora mensagem de boas-vindas"
+git commit -m "feat(app): melhora mensagem de boas-vindas"
 git push -u origin feature/saudacao-pt-br
 ```
 
----
-
-## 2) Pull Request para `main`
-
-Abra o PR `feature/saudacao-pt-br → main`. O workflow **CI** vai rodar automaticamente nos eventos `pull_request`.
-
-Quando o PR for aprovado e **mergeado em main**:
-
-- 🟢 O workflow **Deploy • dev** dispara.
-- 🟢 Versão `0.1.0` fica no ambiente **dev**.
-
----
-
-## 3) Promover `main → staging`
-
-Depois que a feature foi validada em dev, promovemos. Promoção **é um PR de merge**, não é cherry-pick:
+Mantenha a branch atualizada enquanto trabalha:
 
 ```bash
-git checkout staging
-git pull
-git merge --no-ff origin/main -m "chore(release): promove main → staging"
-git push origin staging
-```
-
-> 💡 **Dica didática:** abra isso como PR `main → staging` na interface do GitHub. Isso dá visibilidade e permite que alguém aprove a promoção.
-
-Quando o push em `staging` acontece:
-
-- 🟢 O workflow **Deploy • staging** dispara.
-- 🟢 Mesma versão agora também está em **staging**.
-
----
-
-## 4) Promover `staging → production`
-
-Mesma coisa, agora para `production`. Neste passo você normalmente:
-
-1. Atualiza a versão em `package.json` (se seguir SemVer): `0.1.0 → 0.2.0`.
-2. Atualiza o `CHANGELOG.md` movendo o que estava em `[Unreleased]` para a nova versão.
-3. Abre PR `staging → production`.
-
-```bash
-# em uma branch de release opcional
-git checkout staging
-git pull
-git checkout -b release/0.2.0
-# edita package.json e CHANGELOG.md
-git commit -am "chore(release): 0.2.0"
-git push -u origin release/0.2.0
-```
-
-Merge do PR `release/0.2.0 → production` (ou `staging → production`, dependendo do rito da equipe).
-
-Quando o push em `production` acontece:
-
-- 🔒 O workflow **Deploy • production** **pausa esperando aprovação** (graças ao *required reviewer* do Environment).
-- 🟢 Após aprovação, o deploy é feito.
-- 🏷️ Crie a tag de release:
-
-```bash
-git checkout production
-git pull
-git tag -a v0.2.0 -m "Release 0.2.0"
-git push origin v0.2.0
+git fetch origin
+git rebase origin/main
+git push --force-with-lease
 ```
 
 ---
 
-## 5) Fechar o ciclo: sincronizar versão em `main` e `staging`
+## 2) PR `feature/* → main` — **Squash and merge**
 
-Se você bumpou a versão na branch `release/*`, traga essa alteração de volta para `main` (e depois para `staging`) para que todas fiquem na mesma versão:
+- Abra o PR via UI ou `gh pr create -B main`.
+- CI verde + aprovação do reviewer.
+- **Squash and merge** → 1 commit conventional em `main`.
+- 🟢 Workflow **Deploy • dev** dispara automaticamente.
+
+Limpeza:
 
 ```bash
 git checkout main
-git pull
-git merge --no-ff origin/production -m "chore: sincroniza main com production"
-git push origin main
-
-git checkout staging
-git pull
-git merge --no-ff origin/main -m "chore: sincroniza staging com main"
-git push origin staging
+git pull --rebase origin main
+git branch -d feature/saudacao-pt-br
 ```
 
-> Alguns times simplificam isso usando apenas PRs `staging → production` sem branch de release, e fazem o bump direto em `main`. Ambos os modelos funcionam — escolha um e mantenha.
+A branch remota some sozinha se você ativou *"Automatically delete head branches"* em Settings.
+
+---
+
+## 3) PR `main → staging` (promoção) — **Merge commit**
+
+Quando for hora de candidatar uma release a QA:
+
+- Na UI do GitHub: **Pull requests → New pull request** → base `staging`, compare `main`.
+- Título: `chore(release): promove main → staging para 0.2.0` (ou "Release 0.2.0 candidate").
+- O PR mostra o changelog automático: todos os commits que vão entrar.
+- **Merge commit** (`--no-ff`) — **não squash** aqui. Preserva a linhagem.
+- 🟢 Workflow **Deploy • staging** dispara.
+
+Via CLI (se preferir):
+
+```bash
+gh pr create -B staging -H main \
+  --title "chore(release): promove main → staging para 0.2.0" \
+  --body "Release candidate 0.2.0"
+# aprove e mergeie via UI (merge commit)
+```
+
+QA valida em staging (E2E, regressão, smoke). Se encontrar bug, vai para o [cenário 3 — fix em staging](03-bugfix-staging.md).
+
+---
+
+## 4) PR `staging → production` (release) — **Merge commit** + bump + tag
+
+Quando QA aprovar:
+
+### 4.1 Abra o PR de release
+
+```bash
+gh pr create -B production -H staging \
+  --title "chore(release): 0.2.0" \
+  --body "Release 0.2.0 — staging → production"
+```
+
+- Aprovação (2 reviewers, conforme proteção de production).
+- **Merge commit** (`--no-ff`) via UI.
+- 🔒 Workflow **Deploy • production** pausa esperando aprovação no Environment.
+- 🟢 Após aprovação → deploy.
+
+### 4.2 Bump de versão + tag **direto em `production`**
+
+Após o merge, na sua máquina:
+
+```bash
+git checkout production
+git pull --rebase origin production
+
+# bump SemVer (minor: 0.1.0 → 0.2.0)
+npm version 0.2.0 --no-git-tag-version
+git add package.json package-lock.json
+git commit -m "chore(release): bump para 0.2.0"
+
+# tag anotada
+git tag -a v0.2.0 -m "Release 0.2.0"
+
+# push branch + tag
+git push origin production --tags
+```
+
+- Tag `v0.2.0` aparece em **Tags / Releases** no GitHub.
+- Gere release notes a partir da tag (UI: *Draft a new release*).
+
+> ⚠️ **Exige permissão:** seu usuário precisa ter permissão de push em `production` (bypass da proteção, ou admin). Sem isso, você precisa abrir **outro PR** `chore/bump-0.2.0 → production` com o commit do bump — o que funciona mas adiciona cerimônia.
+
+### 4.3 Como escolher a versão (SemVer)
+
+Olhe os Conventional Commits que entraram em `main` desde o último release:
+
+- Só `fix:` → **PATCH** (`0.1.1`)
+- Tem `feat:` → **MINOR** (`0.2.0`)
+- Tem `feat!:` ou `BREAKING CHANGE:` → **MAJOR** (`1.0.0`)
 
 ---
 
@@ -127,8 +135,28 @@ git push origin staging
 
 | Ambiente     | Branch         | Versão |
 | ------------ | -------------- | ------ |
-| dev          | `main`         | 0.2.0  |
-| staging      | `staging`      | 0.2.0  |
-| production   | `production`   | 0.2.0  |
+| dev          | `main`         | 0.1.0  |
+| staging      | `staging`      | 0.1.0  |
+| production   | `production`   | 0.2.0 + tag `v0.2.0` |
 
-Tudo alinhado. Próximo cenário: [02 — Hotfix em produção](02-hotfix-producao.md).
+`main` e `staging` ficam na versão anterior — é esperado. A versão em `main` só muda quando uma próxima release bumpar de novo em `production`.
+
+---
+
+## 📅 Cadência recomendada
+
+Promoções previsíveis reduzem ansiedade do time:
+
+- **Terça de manhã** → PR `main → staging`
+- **Quinta à tarde** → PR `staging → production` (release)
+
+Janela vazia? **Não force uma release.** A regularidade é da *janela*, não da *obrigação*.
+
+---
+
+## ➡️ Próximos cenários
+
+- [02 — Hotfix em produção](02-hotfix-producao.md)
+- [03 — Fix em staging](03-bugfix-staging.md)
+- [04 — Bugfix em dev](04-bugfix-dev.md)
+- [06 — Armadilhas comuns e FAQ](06-armadilhas-e-faq.md)

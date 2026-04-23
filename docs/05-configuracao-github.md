@@ -59,9 +59,8 @@ Configure assim:
 #### Regras a marcar
 
 - ✅ **Restrict deletions** — ninguém deleta essas branches.
-- ✅ **Require linear history** — proíbe merge commits com múltiplos parents não esperados; força PRs limpos.
 - ✅ **Require a pull request before merging**
-  - **Required approvals:** `1` (ou `2` se a equipe for maior)
+  - **Required approvals:** `1` em `main`/`staging`, `2` em `production`.
   - ✅ **Dismiss stale pull request approvals when new commits are pushed**
   - ✅ **Require review from Code Owners**
   - ✅ **Require approval of the most recent reviewable push**
@@ -71,9 +70,12 @@ Configure assim:
   - Status checks obrigatórios:
     - `CI / Lint & Testes`
     - `PR title lint / Valida título do PR (Conventional Commits)`
-    - `Promotion guard / Valida origem do PR de promoção` *(só aparece em PRs para staging/production — adicione mesmo assim, o GitHub valida apenas quando o check tem relevância)*
 - ✅ **Block force pushes**
 - ✅ **Require signed commits** *(opcional mas recomendado — ver §9)*
+
+> ⚠️ **NÃO marque "Require linear history"** se você quer merge commits (`--no-ff`) nas promoções `main → staging` e `staging → production`. Linear history força squash/rebase em todos os PRs, o que estraga a linhagem das promoções. Para features/bugfix/hotfix use squash merge; para promoções, merge commit.
+
+> 💡 **Bypass para release manager:** para poder bumpar versão e criar tag direto em `production` após o merge (ver [01-fluxo-normal.md §4.2](01-fluxo-normal.md)), adicione o usuário responsável pela release à **bypass list** do ruleset. Sem isso, o bump vira um PR separado `chore/bump-0.2.0 → production`.
 
 **Salve.** Agora é **impossível** fazer `git push origin main` direto — só via PR aprovado com CI verde.
 

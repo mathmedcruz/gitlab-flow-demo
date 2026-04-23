@@ -1,89 +1,96 @@
-# Cenário 3 — Bug descoberto em staging 🧪
+# Cenário 3 — Fix em staging 🧪
 
-**Situação:** a QA testou em **staging** e encontrou um bug **antes** do código chegar em produção. Como consertar respeitando o fluxo?
+**Situação:** QA testou em **staging** e encontrou um bug **antes** do código chegar em produção. O bug está em `main` e `staging`, mas **ainda não em produção**.
 
-Este é o cenário **mais tranquilo** — justamente porque staging existe para isso. Produção ainda está estável.
+Filosofia: **upstream first** — fix entra em `main` primeiro, depois **cherry-pick** para staging. Cherry-pick em vez de promover `main → staging` inteiro porque `main` pode ter outras features ainda incompletas que não queremos trazer pra staging ainda.
+
+```
+main       ●───────●────────● ← fix entra em main (squash)
+                   ↓ cherry-pick
+staging    ●───────○────────● ← recebe só o commit do fix
+production ●───────────────── (intocado)
+```
 
 ---
 
-## Estratégia: fix em `main`, depois re-promove
-
-### 1) Criar branch de bugfix a partir de `main`
+## 1) Fix em `main` primeiro
 
 ```bash
 git checkout main
-git pull
-git checkout -b bugfix/validacao-json-invalido
+git pull --rebase origin main
+git checkout -b fix/PROJ-260-timeout-gateway
+
+# aplica correção
+git commit -am "fix(checkout): trata timeout do gateway de pagamento"
+git push -u origin fix/PROJ-260-timeout-gateway
 ```
 
-Faça o fix, commit e push:
+PR `fix/* → main`, CI verde, **Squash and merge**. Anote o SHA:
 
 ```bash
-git commit -am "fix: trata payload JSON inválido sem crashar"
-git push -u origin bugfix/validacao-json-invalido
+git checkout main
+git pull --rebase origin main
+git log --oneline -1
+# Exemplo: a3f7b89 fix(checkout): trata timeout do gateway de pagamento
 ```
 
-### 2) PR para `main`
-
-- Abre PR `bugfix/* → main`.
-- CI roda, reviewer aprova, merge.
-- 🟢 Deploy automático em **dev**.
-- QA **valida em dev** antes de promover de novo.
-
-### 3) Re-promover `main → staging`
-
-Como o bug estava em staging, basta trazer a nova main:
-
-```bash
-git checkout staging
-git pull
-git merge --no-ff origin/main -m "chore(release): re-promove main → staging (com bugfix)"
-git push origin staging
-```
-
-- 🟢 Deploy automático em **staging**.
-- QA valida novamente.
-
-### 4) Quando estiver validado, segue o fluxo normal
-
-Continua para `production` como descrito no [cenário 1](01-fluxo-normal.md), passo 4.
+🟢 Deploy em **dev** com o fix.
 
 ---
 
-## 🚦 E se staging estiver muito quebrado?
-
-Às vezes um bug em staging indica que **a promoção anterior foi prematura** e staging está instável demais para continuar recebendo features. Opções:
-
-### Opção A — Segurar promoções para staging até estabilizar
-
-- Pare de mergear `main → staging`.
-- Aplique apenas bugfixes (via cherry-pick se quiser ser cirúrgico):
-  ```bash
-  git checkout staging
-  git cherry-pick <sha-do-bugfix-em-main>
-  git push origin staging
-  ```
-- Só volta a promover `main` inteira quando staging estiver estável.
-
-### Opção B — Reverter a promoção problemática
-
-Se a promoção anterior levou vários commits ruins:
+## 2) Cherry-pick para `staging`
 
 ```bash
 git checkout staging
-git pull
-git revert -m 1 <sha-do-merge-de-promocao>
+git pull --rebase origin staging
+git cherry-pick a3f7b89
 git push origin staging
 ```
 
-`-m 1` indica que você quer manter o "lado esquerdo" do merge (o estado anterior de staging) e descartar o "lado direito" (o que veio de main). Isso **não apaga** o merge — cria um novo commit que desfaz as mudanças. Depois você corrige em main e promove de novo.
+🟢 Deploy em **staging**. QA revalida.
+
+### Por que **não** promover `main` inteira para staging?
+
+Porque `main` pode ter **features incompletas** ou em teste que ainda não estão prontas para o release atual. Cherry-pick é cirúrgico: leva **só o fix**, preservando o escopo da release em staging.
+
+Se TODAS as features em `main` também estão prontas, aí sim faça a promoção normal `main → staging` via PR — mas é decisão explícita.
 
 ---
 
-## 🧠 Lição do cenário
+## 3) Continua o fluxo normal
 
-- Staging **é o lugar certo** para encontrar bugs antes da produção.
-- A correção sempre começa em `main` — nunca direto em `staging`.
-- Promover = `merge --no-ff` de `main` em `staging`. Nunca commit direto.
+O fix agora está em `main` e em `staging`. Quando for hora de fechar a release, ele vai para `production` no mesmo trem do [cenário 1 — fluxo normal](01-fluxo-normal.md):
 
-Próximo cenário: [04 — Bug em dev](04-bugfix-dev.md).
+- PR `staging → production`
+- Merge commit
+- Bump + tag em `production`
+
+---
+
+## 🚦 E se staging estiver MUITO quebrado?
+
+Se o bug indica que a promoção anterior foi prematura:
+
+### A — Segurar promoções e aplicar só fixes cirúrgicos
+
+Para cada bug encontrado, fix em `main` + cherry-pick para `staging`. Não promova `main → staging` enquanto estabiliza.
+
+### B — Reverter a promoção problemática
+
+```bash
+git checkout staging
+git pull --rebase origin staging
+git revert -m 1 <sha-do-merge-commit-da-promocao>
+git push origin staging
+```
+
+`-m 1` preserva o "lado esquerdo" do merge (estado anterior de staging). Cria um novo commit de revert — **não reescreve histórico**.
+
+---
+
+## ❗ Anti-padrões
+
+- ❌ **Commit direto em `staging`**. Sempre `main` → cherry-pick.
+- ❌ **Misturar merge e cherry-pick**: decida um (ou promove tudo, ou pega um commit).
+
+Próximo cenário: [04 — Bugfix em dev](04-bugfix-dev.md).
